@@ -69,6 +69,7 @@ OPTIONS=(
   "slow_memoryinfo:no"
   "libsystemd_daemon:no"
   "bintray_cache:yes"
+  "isdb:yes"
 )
 
 #
