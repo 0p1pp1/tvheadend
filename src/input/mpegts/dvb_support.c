@@ -544,6 +544,9 @@ dvb_convert_date(const uint8_t *dvb_buf, int tmzone)
   dvb_time.tm_wday = 0;
   dvb_time.tm_yday = 0;
 
+#if ENABLE_ISDB
+  tmzone = 9 * 60;
+#endif
   if (tmzone == 0) /* UTC */
     return timegm(&dvb_time);
   if (tmzone == 1) /* Local time */
