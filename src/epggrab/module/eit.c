@@ -520,9 +520,15 @@ static int _eit_desc_content
   ( epggrab_module_t *mod, const uint8_t *ptr, int len, eit_event_t *ev )
 {
   while (len > 1) {
+#if ENABLE_ISDB
+    if ((*ptr & 0xf0) == 0xe0) {
+      /* TODO: handle program attributes */
+    } else if (*ptr < 0xe0) {
+#else  /* ENABLE_ISDB */
     if (*ptr == 0xb1)
       ev->bw = 1;
     else if (*ptr < 0xb0) {
+#endif  /* !ENABLE_ISDB */
       if (!ev->genre) ev->genre = calloc(1, sizeof(epg_genre_list_t));
       epg_genre_list_add_by_eit(ev->genre, *ptr);
     }
