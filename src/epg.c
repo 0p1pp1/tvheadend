@@ -1639,12 +1639,20 @@ static epg_broadcast_t *_epg_channel_add_broadcast
       if (!_epg_object_set_grabber(ret, src))
         return ret;
 
-      /* No time change */
-      if (ret->stop == (*bcast)->stop) {
+      /* No change */
+      if (ret->stop == (*bcast)->stop && ret->dvb_eid == (*bcast)->dvb_eid) {
         return ret;
 
-      /* Extend in time */
+      /* Extend in time or Change of evid */
       } else {
+        if ( ret->dvb_eid != (*bcast)->dvb_eid ) {
+          tvhinfo("epg", "event %u (ev-id:%u, %s) on %s @ %"PRItime_t
+                  " was replaced by another(ev-id:%u)", ret->id, ret->dvb_eid,
+                  epg_broadcast_get_title(ret, NULL), channel_get_name(ch),
+                  ret->start, (*bcast)->dvb_eid);
+          epg_broadcast_set_dvb_eid(ret, (*bcast)->dvb_eid, changed);
+          dvr_event_replaced(ret, (epg_broadcast_t *) 1 /* dummy */);
+        }
         ret->stop = (*bcast)->stop;
         _epg_object_set_updated(ret);
         tvhtrace("epg", "updated event %u (%s) on %s @ %"PRItime_t " to %"PRItime_t,
@@ -1667,6 +1675,9 @@ static epg_broadcast_t *_epg_channel_add_broadcast
   }
 
   /* Remove overlapping (after) */
+#if ENABLE_ISDB
+  if ( ! ISDB_BC_DUR_UNDEFP(ret) )
+#endif
   while ((ebc = RB_NEXT(ret, sched_link)) != NULL) {
     if (ebc->start >= ret->stop) break;
     tvhtrace("epg", "remove overlap (a) event %u (%s) on %s @ %"PRItime_t " to %"PRItime_t,

@@ -517,6 +517,8 @@ struct epg_broadcast
 
 };
 
+#define ISDB_EPG_UNDEF_DUR (165 * 3600 + 165 * 60 + 165)
+#define ISDB_BC_DUR_UNDEFP(bc) ((bc)->stop - (bc)->start == ISDB_EPG_UNDEF_DUR)
 /* Lookup */
 epg_broadcast_t *epg_broadcast_find_by_time 
   ( struct channel *ch, struct epggrab_module *src,

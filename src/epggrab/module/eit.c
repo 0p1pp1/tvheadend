@@ -421,13 +421,47 @@ static int _eit_process_event_one
   eit_event_t ev;
   uint32_t changes2 = 0, changes3 = 0, changes4 = 0;
 
+  /* skip events with start time undefined. (maybe delayed and set later) */
+  if (!memcmp(&ptr[2], "\xff\xff\xff\xff\xff", 5)) {
+    if ( !(tableid == 0x4e && sect == 1 && memcmp(&ptr[7], "\xff\xff\xff", 3)) )
+      return -1;
+  }
+
   /* Core fields */
   eid   = ptr[0] << 8 | ptr[1];
+  if (eid == 0) {
+    tvhwarn("eit", "found eid==0");
+    return -1;
+  }
   start = dvb_convert_date(&ptr[2], local);
   stop  = start + bcdtoint(ptr[7] & 0xff) * 3600 +
                   bcdtoint(ptr[8] & 0xff) * 60 +
                   bcdtoint(ptr[9] & 0xff);
   running = (ptr[10] >> 5) & 0x07;
+
+#if ENABLE_ISDB
+  /* Set running status for the current event. (since ISDB doesn't set it) */
+  if (tableid < 0x50 && sect == 0)
+    running = 4; /* running */
+
+  /* avoid overwriting current/next events from EITp/f by EITschedule */
+  if (tableid == 0x50) {
+    time_t t;
+
+    if (ch->ch_epg_next && !ISDB_BC_DUR_UNDEFP(ch->ch_epg_next))
+      t = ch->ch_epg_next->stop;
+    else if (ch->ch_epg_next && ch->ch_epg_next->start > dispatch_clock)
+      t = ch->ch_epg_next->start;
+    else if (ch->ch_epg_now && !ISDB_BC_DUR_UNDEFP(ch->ch_epg_now))
+      t = ch->ch_epg_now->stop;
+    else
+      t = dispatch_clock;
+
+    if (start < t)
+      return 0;
+  }
+#endif
+
   dllen = ((ptr[10] & 0x0f) << 8) | ptr[11];
 
   len -= 12;

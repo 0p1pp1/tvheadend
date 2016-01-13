@@ -655,6 +655,17 @@ if enabled_or_auto libsystemd_daemon; then
   fi
 fi
 
+#
+# ISDB
+#
+if enabled isdb; then
+  if check_cc_lib unistring; then
+    LDFLAGS="${LDFLAGS} -lunistring"
+  else
+    die "libunistring not found. Install it or disable ISDB."
+  fi
+fi
+
 # ###########################################################################
 # Write config
 # ###########################################################################
