@@ -317,6 +317,7 @@ const char *intlconv_charsets[] = {
   "ANSI_X3.110",
   "ARABIC",
   "ARABIC7",
+  "ARIB-STD-B24",
   "ARMSCII-8",
   "ASCII",
   "ASMO-708",

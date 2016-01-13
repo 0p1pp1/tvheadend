@@ -156,6 +156,7 @@ dvb_charset_enum ( void *p, const char *lang )
     "GB2312",
     "UCS2",
     "AUTO_POLISH",
+    "ARIB-STD-B24",
   };
   htsmsg_t *m = htsmsg_create_list();
   for ( i = 0; i < ARRAY_SIZE(charsets); i++)
