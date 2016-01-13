@@ -75,6 +75,7 @@ OPTIONS=(
   "ddci:yes"
   "cclang_threadsan:no"
   "gperftools:no"
+  "isdb:yes"
 )
 
 #
