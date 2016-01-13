@@ -233,7 +233,9 @@ dvr_entry_assign_broadcast(dvr_entry_t *de, epg_broadcast_t *bcast)
       de->de_bcast->ops->putref((epg_object_t*)de->de_bcast);
       notify_delayed(id, "epg", "dvr_delete");
       de->de_bcast = NULL;
+#if ! ENABLE_ISDB
       de->de_dvb_eid = 0;
+#endif
     }
     if (bcast) {
       bcast->ops->getref((epg_object_t*)bcast);

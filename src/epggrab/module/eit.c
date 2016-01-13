@@ -655,13 +655,43 @@ static int _eit_process_event_one
   uint32_t changes2 = 0, changes3 = 0, changes4 = 0;
   char tm1[32], tm2[32];
 
+#if ENABLE_ISDB
+  /* skip events with start time undefined. (maybe delayed and set later) */
+  if (!memcmp(&ptr[2], "\xff\xff\xff\xff\xff", 5)) {
+    if ( !(tableid == 0x4e && sect == 1 && memcmp(&ptr[7], "\xff\xff\xff", 3)) )
+      return -1;
+    return 0;
+  }
+
+  if (!memcmp(&ptr[7], "\xff\xff\xff", 3) && tableid >= 0x50)
+    return -1;
+#endif
+
   /* Core fields */
   eid   = ptr[0] << 8 | ptr[1];
+  if (eid == 0) {
+    tvhwarn(LS_TBL_EIT, "found eid==0");
+    return -1;
+  }
   start = dvb_convert_date(&ptr[2], local);
   stop  = start + bcdtoint(ptr[7] & 0xff) * 3600 +
                   bcdtoint(ptr[8] & 0xff) * 60 +
                   bcdtoint(ptr[9] & 0xff);
   running = (ptr[10] >> 5) & 0x07;
+
+#if ENABLE_ISDB
+  /* Set running status for the current event. (since ISDB doesn't set it) */
+  if (tableid < 0x50 && sect == 0)
+    running = 4; /* running */
+
+  /* prefer EITp over EITsched */
+  if (((tableid & 0xf7) == 0x50 || (tableid & 0xf7) == 0x60) &&
+      ch->ch_epg_now && ch->ch_epg_now->running == EPG_RUNNING_NOW &&
+      start <= ch->ch_epg_now->start)
+    return 0;
+
+#endif
+
   dllen = ((ptr[10] & 0x0f) << 8) | ptr[11];
 
   len -= 12;
@@ -732,7 +762,15 @@ static int _eit_process_event_one
    * Broadcast
    */
 
-  *save |= epg_broadcast_set_dvb_eid(ebc, eid, &changes2);
+  uint16_t prev_eid = ebc->dvb_eid;
+  if (epg_broadcast_set_dvb_eid(ebc, eid, &changes2) && prev_eid != 0) {
+    tvhinfo(LS_EPG, "event %u (ev-id:%u, %s) on %s @ %"PRItime_t
+            " was replaced by another(ev-id:%u)", ebc->id, prev_eid,
+            epg_broadcast_get_title(ebc, NULL), channel_get_name(ch),
+            ebc->start, eid);
+    dvr_event_replaced(ebc, (epg_broadcast_t *) 1 /* dummy */);
+    *save |= 1;
+  }
 
   /* Summary/Description */
   if (ev.summary)
@@ -785,10 +823,16 @@ static int _eit_process_event_one
     if (ev.extra)
       *save |= epg_episode_set_extra(ee, extra, &changes4);
 #endif
-    *save |= epg_episode_change_finish(ee, changes4, 0);
+    /* EITsched_ext contains only extended event desc.
+     * so just forcibly "merge" here.
+     */
+    *save |= epg_episode_change_finish(ee, changes4, 1);
   }
 
-  *save |= epg_broadcast_change_finish(ebc, changes2, 0);
+  /* EIT may describe just a part of an event,
+   * so just forcibly "merge" here.
+   */
+  *save |= epg_broadcast_change_finish(ebc, changes2, 1);
 
   /* Tidy up */
 #if TODO_ADD_EXTRA
@@ -987,7 +1031,7 @@ svc_ok:
 done:
   r = dvb_table_end((mpegts_psi_table_t *)mt, st, sect);
 complete:
-  if (ota && !r && (tableid >= 0x50 && tableid < 0x60))
+  if (ota && !r && (tableid == 0x4e || (tableid >= 0x50 && tableid < 0x60)))
     epggrab_ota_complete((epggrab_module_ota_t*)mod, ota);
   
   return r;

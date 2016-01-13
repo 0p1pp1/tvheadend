@@ -1704,6 +1704,7 @@ static epg_broadcast_t *_epg_channel_add_broadcast
 
       /* Extend in time */
       } else {
+        if ( ret->dvb_eid != (*bcast)->dvb_eid ) {
         ret->stop = (*bcast)->stop;
         _epg_object_set_updated(ret);
         tvhtrace(LS_EPG, "updated event %u (%s) on %s @ %s to %s (grabber %s)",
@@ -1722,6 +1723,9 @@ static epg_broadcast_t *_epg_channel_add_broadcast
   /* Remove overlapping (before) */
   while ((ebc = RB_PREV(ret, sched_link)) != NULL) {
     if (ebc->stop <= ret->start) break;
+#if ENABLE_ISDB
+    if (ISDB_BC_DUR_UNDEFP(ebc)) break;
+#endif
     if (!_epg_object_can_remove(ebc, ret)) {
       tvhtrace(LS_EPG, "grabber for event %u has lower priority than overlap (b), removing", ebc->id);
       _epg_channel_rem_broadcast(ch, ret, NULL);
@@ -1747,6 +1751,9 @@ static epg_broadcast_t *_epg_channel_add_broadcast
   }
 
   /* Remove overlapping (after) */
+#if ENABLE_ISDB
+  if ( ! ISDB_BC_DUR_UNDEFP(ret) )
+#endif
   while ((ebc = RB_NEXT(ret, sched_link)) != NULL) {
     if (ebc->start >= ret->stop) break;
     if (!_epg_object_can_remove(ebc, ret)) {
