@@ -26,6 +26,7 @@
 #include "epggrab/private.h"
 #include "input.h"
 #include "input/mpegts/dvb_charset.h"
+#include "intlconv.h"
 #include "dvr/dvr.h"
 
 /* ************************************************************************
@@ -164,10 +165,13 @@ static int _eit_desc_ext_event
   char ikey[512], ival[512];
   char buf[512], lang[4];
   const uint8_t *iptr;
+  uint8_t desc_num;
+  int is_first_item;
 
   if (len < 6) return -1;
 
   /* Descriptor numbering (skip) */
+  desc_num = ptr[0] >> 4;
   len -= 1;
   ptr += 1;
 
@@ -189,7 +193,41 @@ static int _eit_desc_ext_event
   len -= ilen;
 
   /* Process */
+  is_first_item = 1;
   while (ilen) {
+#if ENABLE_ISDB
+    /*
+     * The 1st item value can be a part of long text
+     * that is split among consecutive descriptors.
+     * If so, it must be converted WITHOUT resetting the conversion state,
+     * and concatenated to the last item value in the previous desc.
+     * (note that _eit_get_string_with_len() resets conversion state)
+     */
+    if (iptr[0] == 0 && desc_num > 0 && is_first_item) {
+      size_t l;
+
+      ikey[0] = 0;
+      ilen --;
+      iptr ++;
+
+      if (!*iptr || *iptr > ilen - 1)
+        break;
+      l = intlconv_to_utf8(ival, sizeof(ival),
+                           intlconv_charset_id("ARIB-STD-B24", 1, 1),
+                           (const char *) iptr + 1, *iptr);
+      if (l < 0)
+        break;
+      if (l >= sizeof(ival))
+        ival[sizeof(ival) - 1] = 0;
+      else
+        ival[l] = 0;
+
+      ilen -= *iptr + 1;
+      iptr += *iptr + 1;
+
+      goto append_to_desc;
+    }
+#endif  /* ENABLE_ISDB */
 
     /* Key */
     if ( (r = _eit_get_string_with_len(mod, ikey, sizeof(ikey),
@@ -215,6 +253,21 @@ static int _eit_desc_ext_event
       htsmsg_add_str(ev->extra, ikey, ival);
     }
 #endif
+
+#if ENABLE_ISDB
+append_to_desc:
+    if (*ikey) {
+      if (!ev->desc) ev->desc = lang_str_create();
+      if (!is_first_item) lang_str_append(ev->desc, "\n", lang);
+      is_first_item = 0;
+      lang_str_append(ev->desc, ikey, lang);
+      lang_str_append(ev->desc, ":\n", lang);
+    }
+    if (*ival) {
+      if (!ev->desc) ev->desc = lang_str_create();
+      lang_str_append(ev->desc, ival, lang);
+    }
+#endif  /* ENABLE_ISDB */
   }
 
   /* Description */
