@@ -200,6 +200,139 @@ static int _eit_get_string_with_len
   return dvb_get_string_with_len(dst, dstlen, src, srclen, charset, cptr);
 }
 
+#if ENABLE_ISDB
+#include <unistr.h>
+#include <unictype.h>
+
+static void _eit_isdb_split_title
+  ( uint8_t *buf, const uint8_t **title, const uint8_t **sub,
+    const uint8_t **extbuf )
+{
+  /* Character icons for broadcast/program property:
+   * ARIB B24 characters of row:90 col:48-82 (like "[HD]", "[SD]", ...).
+   */
+  static const uint8_t ISDB_EPG_CHARS[] = {
+    0xf0, 0x9f, 0x85, 0x8a, /* U+1f14a */ 0xf0, 0x9f, 0x85, 0x8c, /* U+1f14c */
+    0xf0, 0x9f, 0x84, 0xbf, /* U+1f13f */ 0xf0, 0x9f, 0x85, 0x86, /* U+1f146 */
+    0xf0, 0x9f, 0x85, 0x8b, /* U+1f14b */ 0xf0, 0x9f, 0x88, 0x90, /* U+1f210 */
+    0xf0, 0x9f, 0x88, 0x91, /* U+1f211 */ 0xf0, 0x9f, 0x88, 0x92, /* U+1f212 */
+    0xf0, 0x9f, 0x88, 0x93, /* U+1f213 */ 0xf0, 0x9f, 0x85, 0x82, /* U+1f142 */
+    0xf0, 0x9f, 0x88, 0x94, /* U+1f214 */ 0xf0, 0x9f, 0x88, 0x95, /* U+1f215 */
+    0xf0, 0x9f, 0x88, 0x96, /* U+1f216 */ 0xf0, 0x9f, 0x85, 0x8d, /* U+1f14d */
+    0xf0, 0x9f, 0x84, 0xb1, /* U+1f131 */ 0xf0, 0x9f, 0x84, 0xbd, /* U+1f13d */
+    0xe2, 0xac, 0x9b,       /* U+2b1b */  0xe2, 0xac, 0xa4,       /* U+2b24 */
+    0xf0, 0x9f, 0x88, 0x97, /* U+1f217 */ 0xf0, 0x9f, 0x88, 0x98, /* U+1f218 */
+    0xf0, 0x9f, 0x88, 0x99, /* U+1f219 */ 0xf0, 0x9f, 0x88, 0x9a, /* U+1f21a */
+    0xf0, 0x9f, 0x88, 0x9b, /* U+1f21b */ 0xe2, 0x9a, 0xbf,       /* U+26bf */
+    0xf0, 0x9f, 0x88, 0x9c, /* U+1f21c */ 0xf0, 0x9f, 0x88, 0x9d, /* U+1f21d */
+    0xf0, 0x9f, 0x88, 0x9e, /* U+1f21e */ 0xf0, 0x9f, 0x88, 0x9f, /* U+1f21f */
+    0xf0, 0x9f, 0x88, 0xa0, /* U+1f220 */ 0xf0, 0x9f, 0x88, 0xa1, /* U+1f221 */
+    0xf0, 0x9f, 0x88, 0xa2, /* U+1f222 */ 0xf0, 0x9f, 0x88, 0xa3, /* U+1f223 */
+    0xf0, 0x9f, 0x88, 0xa4, /* U+1f224 */ 0xf0, 0x9f, 0x88, 0xa5, /* U+1f225 */
+    0xf0, 0x9f, 0x85, 0x8e, /* U+1f14e */ 0xe3, 0x8a, 0x99,       /* U+3299 */
+    0xf0, 0x9f, 0x88, 0x80, /* U+1f200 */
+    0
+  };
+  /* open punctuations (but excluding those used for describing title) */
+  static const uint32_t ISDB_EPG_OPEN_PUNC[] = {
+    /* « 【 〖 */
+    0x00ab, 0x3010, 0x3016,
+    /* – — 〜 */
+    0x2013, 0x2014, 0x301c,
+    0
+  };
+  static const uint32_t ISDB_EPG_CLOSE_PUNC[] = {
+    0x00bb, 0x3011, 0x3017,
+    0x2013, 0x2014, 0x301c,
+    0
+  };
+  static const uint8_t ISDB_EPG_DELIM_CHARS[] = {
+    0xe2, 0x96, 0xbc, /* U+25bc ▼ */ 0xe2, 0x96, 0xbd, /* U+25bd ▽ */
+    0xe2, 0x97, 0x86, /* U+25c6 ◆ */ 0xe2, 0x97, 0x87, /* U+25c7 ◇ */
+    0
+  };
+
+  static uint8_t extra[128];
+
+  const uint8_t *p;
+  size_t l;
+  int ext_idx;
+  ucs4_t uc;
+
+  *title = *sub = NULL;
+  *extbuf = extra;
+
+  ext_idx = 0;
+  extra[ext_idx] = '\0';
+
+  /* save & skip leading EPG chars */
+  l = u8_strspn(buf, ISDB_EPG_CHARS);
+  if (l > 0 && ext_idx + l < sizeof(extra)) {
+    memcpy(extra + ext_idx, buf, l);
+    ext_idx += l;
+    extra[ext_idx] = '\0';
+  }
+  *title = buf + l;
+  if (**title == '\0')
+    return;
+
+  /* remove another EPG chars in the middle or end of text */
+  p = u8_strpbrk(*title, ISDB_EPG_CHARS);
+  if (p) {
+    l = u8_strspn(p, ISDB_EPG_CHARS);
+    if (l > 0 && ext_idx + l < sizeof(extra)) {
+      memcpy(extra + ext_idx, title, l);
+      ext_idx += l;
+      extra[ext_idx] = '\0';
+    }
+    * (uint8_t *) p = '\0';
+    p += l;
+    /* if EPG chars are in the midst of text, they must be a delimiter */
+    if (*p != '\0') {
+      *sub = p;
+      return;
+    }
+  }
+
+  /* if the last char is in ISDB_EPG_CLOSE_PUNC.. */
+  /* firstly, find the last char */
+  for (p = *title; p && *p; p = u8_next(&uc, p)) ;
+  if (!p || uc == 0xfffd)
+    return;
+
+  if (u32_strchr(ISDB_EPG_CLOSE_PUNC, uc)) {
+    int i;
+    const uint8_t *q;
+
+    i = u32_strchr(ISDB_EPG_CLOSE_PUNC, uc) - ISDB_EPG_CLOSE_PUNC;
+    p = u8_prev(&uc, p, *title);
+    while (p != *title) {
+      p = u8_prev(&uc, p, *title);
+      if (uc == ISDB_EPG_OPEN_PUNC[i])
+        break;
+    }
+    if (p == *title)
+      return;
+
+    /* if a special delimiter char is preceding the opening punc char,
+     * prefer special delimiter.
+     */
+    q = u8_strpbrk(*title, ISDB_EPG_DELIM_CHARS);
+    if (q && q != *title && q < p)
+      p = q;
+    *sub = p;
+    return;
+  }
+
+  /* special delimiters */
+  p = u8_strpbrk(*title, ISDB_EPG_DELIM_CHARS);
+  if (p && p != *title)
+    *sub = p;
+
+  return;
+}
+#endif /* ENABLE_ISDB */
+
 /*
  * Short Event - 0x4d
  */
@@ -209,6 +342,7 @@ static int _eit_desc_short_event
   int r;
   char lang[4];
   char buf[512];
+  char *extra;
 
   if ( len < 5 ) return -1;
 
@@ -223,8 +357,25 @@ static int _eit_desc_short_event
                                      ptr, len, ev->default_charset)) < 0 ) {
     return -1;
   } else if ( r > 1 ) {
+#if ENABLE_ISDB
+    char *title, *sub;
+
+    _eit_isdb_split_title((uint8_t *) buf, (const uint8_t **) &title,
+                          (const uint8_t **) &sub, (const uint8_t **) &extra);
+    if (!title || !*title)
+      return -1;
+
+    if (!strempty(sub)) {
+      if (!ev->summary) ev->summary = lang_str_create();
+      lang_str_add(ev->summary, sub, "jpn");
+      *sub = '\0';
+    }
+    if (!ev->title) ev->title = lang_str_create();
+    lang_str_add(ev->title, title, lang);
+#else
     if (!ev->title) ev->title = lang_str_create();
     lang_str_add(ev->title, buf, lang);
+#endif /* !ENABLE_ISDB */
   }
 
   len -= r;
@@ -237,7 +388,20 @@ static int _eit_desc_short_event
     return -1;
   } else if ( r > 1 ) {
     if (!ev->summary) ev->summary = lang_str_create();
+#if ENABLE_ISDB
+    if (!lang_str_empty(ev->summary)) {
+      lang_str_append(ev->summary, "\n", lang);
+      lang_str_append(ev->summary, buf, lang);
+    } else
+      lang_str_add(ev->summary, buf, lang);
+
+    if (!strempty(extra)) {
+      lang_str_append(ev->summary, "\n", lang);
+      lang_str_append(ev->summary, extra, lang);
+    }
+#else
     lang_str_add(ev->summary, buf, lang);
+#endif /* !ENABLE_ISDB */
   }
 
   return 0;
