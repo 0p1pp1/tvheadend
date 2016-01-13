@@ -57,6 +57,7 @@ OPTIONS=(
   "gtimer_check:no"
   "libsystemd_daemon:no"
   "bintray_cache:yes"
+  "isdb:yes"
 )
 
 #
