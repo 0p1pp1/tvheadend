@@ -1156,6 +1156,10 @@ htsp_build_event
     if (e->serieslink->uri)
       htsmsg_add_str(out, "serieslinkUri", e->serieslink->uri);
   }
+#if ENABLE_ISDB
+  if (e->relay_to_id)
+    htsmsg_add_u32(out, "relaytoId", e->relay_to_id);
+#endif
 
   if (ee) {
     htsmsg_add_u32(out, "episodeId", ee->id);

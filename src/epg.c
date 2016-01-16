@@ -1815,6 +1815,8 @@ int epg_broadcast_change_finish
     save |= epg_broadcast_set_summary(broadcast, NULL, NULL);
   if (!(changes & EPG_CHANGED_DESCRIPTION))
     save |= epg_broadcast_set_description(broadcast, NULL, NULL);
+  if (!(chanages & EPG_CHANGED_RELAY_DEST))
+    save |= epg_broadcast_set_relay_dest(broadcast, 0, NULL);
   return save;
 }
 
@@ -1843,6 +1845,7 @@ epg_broadcast_t *epg_broadcast_clone
     *save |= epg_broadcast_set_description(ebc, src->description, &changes);
     *save |= epg_broadcast_set_serieslink(ebc, src->serieslink, &changes);
     *save |= epg_broadcast_set_episode(ebc, src->episode, &changes);
+    *save |= epg_broadcast_set_relay_dest(ebc, src->relay_to_id, &changes);
     _epg_object_set_grabber(ebc, src->grabber);
     *save |= epg_broadcast_change_finish(ebc, changes, 0);
   }
@@ -1923,6 +1926,27 @@ int epg_broadcast_set_dvb_eid
   if (!b) return 0;
   return _epg_object_set_u16(b, &b->dvb_eid, dvb_eid,
                              changed, EPG_CHANGED_DVB_EID);
+}
+
+int epg_broadcast_set_relay_dest
+  ( epg_broadcast_t *ebc, uint32_t dest_id, uint32_t *changed )
+{
+  int save = 0;
+  if (!ebc || ((epg_object_t *)ebc)->id == dest_id ) return 0;
+  if (changed) *changed |= EPG_CHANGED_RELAY_DEST;
+
+  if ( ebc->relay_to_id != dest_id ) {
+    ebc->relay_to_id = dest_id;
+    if ( !dest_id )
+      tvhinfo("epg", "removed event-relay from event %u (%s) on %s @ %"PRItime_t
+              ", but auto-created DVR entry for the relayed event will remain.",
+              ebc->id, epg_broadcast_get_title(ebc, NULL),
+              channel_get_name(ebc->channel), ebc->stop);
+
+    _epg_object_set_updated(ebc);
+    save = 1;
+  }
+  return save;
 }
 
 int epg_broadcast_set_is_widescreen
@@ -2081,7 +2105,9 @@ htsmsg_t *epg_broadcast_serialize ( epg_broadcast_t *broadcast )
     lang_str_serialize(broadcast->description, m, "description");
   if (broadcast->serieslink)
     htsmsg_add_str(m, "serieslink", broadcast->serieslink->uri);
-  
+  if (broadcast->relay_to_id)
+    htsmsg_add_u32(m, "relay_to_id", broadcast->relay_to_id);
+
   return m;
 }
 
@@ -2163,6 +2189,9 @@ epg_broadcast_t *epg_broadcast_deserialize
 
   /* Set the episode */
   *save |= epg_broadcast_set_episode(ebc, ee, &changes);
+
+  if (!htsmsg_get_u32(m, "relay_to_id", &u32))
+    *save |= epg_broadcast_set_relay_dest(ebc, u32, &changes);
 
   *save |= epg_broadcast_change_finish(ebc, changes, 0);
 

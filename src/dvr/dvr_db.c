@@ -922,6 +922,26 @@ dvr_entry_create_by_event(int enabled, const char *config_uuid,
   if(!e->channel || !e->episode || !e->episode->title)
     return NULL;
 
+#if ENABLE_ISDB
+  if (e->relay_to_id) {
+    epg_broadcast_t *bc;
+
+    bc = epg_broadcast_find_by_id(e->relay_to_id);
+    if (bc && bc->channel) {
+      dvr_entry_t *ent = NULL;
+
+      LIST_FOREACH(ent, &bc->channel->ch_dvrs, de_channel_link) {
+        if (ent->de_bcast == bc) break;
+      }
+      if (!ent)
+        dvr_entry_create_by_event(enabled, config_uuid, bc,
+                                  start_extra, stop_extra, owner, creator,
+                                  dae, pri, retention, removal,
+                                  "auto created by event-relay");
+    }
+  }
+#endif
+
   return dvr_entry_create_(enabled, config_uuid, e,
                            e->channel, e->start, e->stop,
                            start_extra, stop_extra,
@@ -1336,6 +1356,23 @@ dvr_entry_destroy(dvr_entry_t *de, int delconf)
 
   idnode_save_check(&de->de_id, delconf);
 
+#if ENABLE_ISDB
+  if (de->de_dvb_eid && de->de_bcast && de->de_bcast->relay_to_id) {
+    epg_broadcast_t *bc;
+
+    bc = epg_broadcast_find_by_id(de->de_bcast->relay_to_id);
+    if (bc && bc->channel) {
+      dvr_entry_t *ent = NULL;
+
+      LIST_FOREACH(ent, &bc->channel->ch_dvrs, de_channel_link) {
+        if (ent->de_bcast == bc) break;
+      }
+      if (ent)
+        dvr_entry_destroy(ent, delconf);
+    }
+  }
+#endif
+
   if (delconf)
     hts_settings_remove("dvr/log/%s", idnode_uuid_as_str(&de->de_id, ubuf));
 
@@ -1485,6 +1522,45 @@ static dvr_entry_t *_dvr_entry_update
 {
   char buf[40];
   int save = 0, updated = 0;
+
+#if ENABLE_ISDB
+  /* process event-relay */
+  /* remove old relayed-event-recording first */
+  if (de->de_bcast && de->de_bcast != e && de->de_bcast->relay_to_id) {
+    epg_broadcast_t *bc;
+
+    bc = epg_broadcast_find_by_id(de->de_bcast->relay_to_id);
+    if (bc && bc->channel) {
+      dvr_entry_t *ent = NULL;
+
+      LIST_FOREACH(ent, &bc->channel->ch_dvrs, de_channel_link) {
+        if (ent->de_bcast == bc) break;
+      }
+      if (ent)
+        dvr_entry_cancel(ent, 1);
+    }
+  }
+  if (e && e->relay_to_id) {
+    epg_broadcast_t *bc;
+
+    bc = epg_broadcast_find_by_id(e->relay_to_id);
+    if (bc && bc->channel) {
+      dvr_entry_t *ent = NULL;
+
+      LIST_FOREACH(ent, &bc->channel->ch_dvrs, de_channel_link) {
+        if (ent->de_bcast == bc) break;
+      }
+      if (!ent)
+        dvr_entry_create_by_event(enabled, NULL, bc,
+                                  de->de_start_extra, de->de_stop_extra,
+                                  de->de_owner, de->de_creator, NULL,
+                                  de->de_pri, de->de_retention, de->de_removal,
+                                  "auto created by event-relay");
+    } else
+      tvhinfo("dvr", "Failed to auto create DVR entry for the relayed event %u,"
+              " because it is not found in epgdb", e->relay_to_id);
+  }
+#endif /* ENABLE_ISDB */
 
   if (enabled >= 0) {
     enabled = !!enabled;
@@ -1657,6 +1733,48 @@ dvr_entry_update
                            NULL, ch, title, subtitle, desc, lang,
                            start, stop, start_extra, stop_extra,
                            pri, retention, removal);
+}
+
+/**
+ * Used to notify the DVR that an event has moved in the EPG
+ */
+void
+dvr_event_moved(epg_broadcast_t *e, epg_broadcast_t *new_e)
+{
+  dvr_entry_t *de;
+  channel_t *ch = e->channel;
+  char ubuf[UUID_HEX_SIZE];
+
+  assert(e != NULL);
+  assert(new_e != NULL);
+
+  /* Ignore */
+  if (ch == NULL || e == new_e || new_e->channel == NULL) return;
+
+  /* Existing entry */
+  LIST_FOREACH(de, &ch->ch_dvrs, de_channel_link) {
+
+    if (de->de_bcast != e)
+      continue;
+
+    tvhtrace("dvr",
+             "dvr entry %s event %s on %s @ %"PRItime_t
+             " moved to %s @ %"PRItime_t,
+             idnode_uuid_as_str(&de->de_id, ubuf),
+             epg_broadcast_get_title(e, NULL),
+             channel_get_name(ch), e->start,
+             channel_get_name(new_e->channel), new_e->start);
+
+    /* Ignore - already in progress */
+    if (de->de_sched_state != DVR_SCHEDULED)
+      return;
+
+    idnode_uuid_as_str(&de->de_config->dvr_id, ubuf);
+    _dvr_entry_update(de, -1, ubuf, new_e, new_e->channel,
+                      NULL, NULL, NULL, NULL, 0, 0, 0, 0,
+                      DVR_PRIO_NOTSET, 0, 0);
+    return;
+  }
 }
 
 /**

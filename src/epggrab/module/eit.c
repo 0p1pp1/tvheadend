@@ -54,6 +54,11 @@ typedef struct eit_event
 
   uint8_t           parental;
 
+#if ENABLE_ISDB
+  int               gdesc_len;
+  const uint8_t    *group_descriptor;
+#endif
+
 } eit_event_t;
 
 /* ************************************************************************
@@ -622,6 +627,192 @@ static int _eit_desc_crid
   return 0;
 }
 
+#if ENABLE_ISDB
+static epg_broadcast_t *_eit_egroup_get_peerbc
+  ( const uint8_t *ptr, mpegts_mux_t *mm, channel_t **ch, uint16_t *eid)
+{
+  uint16_t sid;
+  mpegts_service_t *peer_svc;
+  idnode_list_mapping_t *ilm;
+
+  *ch = NULL;
+  *eid = 0;
+
+  if (!mm)
+    return NULL;
+
+  sid = ptr[0] << 8 | ptr[1];
+  *eid = ptr[2] << 8 | ptr[3];
+
+  peer_svc = mpegts_mux_find_service(mm, sid);
+  if (!peer_svc)
+    return NULL;
+
+  LIST_FOREACH(ilm, &peer_svc->s_channels, ilm_in1_link) {
+    channel_t *peer_ch = (channel_t *)ilm->ilm_in2;
+
+    if (!peer_ch->ch_enabled || peer_ch->ch_epg_parent) continue;
+    *ch = peer_ch;
+    return epg_broadcast_find_by_eid(peer_ch, *eid);
+  }
+  return NULL;
+}
+
+/*
+ * Event Group Descriptor - 0xD6
+ */
+static int _eit_desc_event_group
+  ( epggrab_module_t *mod, const uint8_t *ptr, int len,
+    epg_broadcast_t *bc, mpegts_service_t *svc, uint32_t *changes )
+{
+  enum {
+    EVENT_GROUP_TYPE_NONE,
+    EVENT_GROUP_TYPE_SHARE,
+    EVENT_GROUP_TYPE_RELAY,
+    EVENT_GROUP_TYPE_MOVE,
+    EVENT_GROUP_TYPE_RELAY_X,
+    EVENT_GROUP_TYPE_MOVE_X,
+  } egtype;
+  int save;
+  int ecount;
+  uint16_t onid, tsid, eid;
+  epg_broadcast_t *peer_bc;
+  channel_t *ch;
+  mpegts_mux_t *mm;
+
+  if (len < 5)
+    return 0;
+
+  save = 0;
+  egtype = (ptr[0] >> 4) & 0x0f;
+  ecount = ptr[0] && 0x0f;
+  len --;
+  ptr ++;
+
+  switch (egtype) {
+  case EVENT_GROUP_TYPE_SHARE:
+    if (ecount == 0 || len < ecount * 4)
+      return 0;
+
+    len = ecount * 4;
+    while (len >= 4) {
+      epg_broadcast_t *src, *dest;
+
+      peer_bc = _eit_egroup_get_peerbc(ptr, svc->s_dvb_mux, &ch, &eid);
+      len -= 4;
+      ptr += 4;
+
+      if (!peer_bc || peer_bc->start != bc->start)
+        continue;
+
+      if (ecount == 1) {
+        src = peer_bc;
+        dest = bc;
+      } else {
+        src = bc;
+        dest = peer_bc;
+        changes = NULL;
+      }
+
+      /* Copy metadata */
+      save |= epg_broadcast_set_is_widescreen(dest, src->is_widescreen, changes);
+      save |= epg_broadcast_set_is_hd(dest, src->is_hd, changes);
+      save |= epg_broadcast_set_lines(dest, src->lines, changes);
+      save |= epg_broadcast_set_aspect(dest, src->aspect, changes);
+      save |= epg_broadcast_set_is_deafsigned(dest, src->is_deafsigned, changes);
+      save |= epg_broadcast_set_is_subtitled(dest, src->is_subtitled, changes);
+      save |= epg_broadcast_set_is_audio_desc(dest, src->is_audio_desc, changes);
+      save |= epg_broadcast_set_is_new(dest, src->is_new, changes);
+      save |= epg_broadcast_set_is_repeat(dest, src->is_repeat, changes);
+      save |= epg_broadcast_set_summary(dest, src->summary, changes);
+      save |= epg_broadcast_set_description(dest, src->description, changes);
+      save |= epg_broadcast_set_serieslink(dest, src->serieslink, changes);
+      save |= epg_broadcast_set_episode(dest, src->episode, changes);
+      save |= epg_broadcast_set_relay_dest(dest, src->relay_to_id, changes);
+      _epg_object_set_grabber(dest, src->grabber);
+    }
+    break;
+
+  case EVENT_GROUP_TYPE_RELAY_X:
+    if (ecount != 0 || len < 8)
+      return 0;
+    onid = ptr[0] << 8 | ptr[1];
+    tsid = ptr[2] << 8 | ptr[2];
+    len -= 4;
+    ptr += 4;
+    mm = mpegts_network_find_mux(svc->s_dvb_mux->mm_network, onid, tsid);
+    /* fall through */
+
+  case EVENT_GROUP_TYPE_RELAY:
+    if (len < 4)
+      return 0;
+    if (egtype == EVENT_GROUP_TYPE_RELAY)
+      mm = svc->s_dvb_mux;
+    peer_bc = _eit_egroup_get_peerbc(ptr, mm, &ch, &eid);
+    len -= 4;
+    ptr += 4;
+
+    if (!peer_bc) {
+      /* create temporal dummy program which should be updated by EPG later. */
+      time_t start, stop;
+
+      if (ISDB_BC_DUR_UNDEFP(bc)) return 0;
+      start = bc->stop;
+      stop = start + ISDB_EPG_UNDEF_DUR;
+      /* check if another program (!=eid) already exists at the start time */
+      if (epg_broadcast_find_by_time(ch, mod, start, stop, eid, 0, &save, NULL))
+        return 0;
+
+      peer_bc  = epg_broadcast_find_by_time(ch, mod, start, stop, eid, 1, &save, NULL);
+      if (!peer_bc) return 0;
+    }
+
+    save |= epg_broadcast_set_relay_dest(bc, ((epg_object_t *)peer_bc)->id, changes);
+    break;
+
+  case EVENT_GROUP_TYPE_MOVE:
+    if (ecount < 1 || len < ecount * 4)
+      return 0;
+
+    len = ecount * 4;
+    while (len >= 4) {
+      peer_bc = _eit_egroup_get_peerbc(ptr, svc->s_dvb_mux, &ch, &eid);
+      len -= 4;
+      ptr += 4;
+
+      if (!peer_bc)
+        continue;
+      dvr_event_moved(peer_bc, bc);
+    }
+    break;
+
+  case EVENT_GROUP_TYPE_MOVE_X:
+    if (ecount != 0)
+      return 0;
+    /* target/source may be a shared event */
+    while (len >= 8) {
+      onid = ptr[0] << 8 | ptr[1];
+      tsid = ptr[2] << 8 | ptr[3];
+      len -= 4;
+      ptr += 4;
+
+      mm = mpegts_network_find_mux(svc->s_dvb_mux->mm_network, onid, tsid);
+      peer_bc = _eit_egroup_get_peerbc(ptr, mm, &ch, &eid);
+      len -= 4;
+      ptr += 4;
+
+      if (!peer_bc)
+        continue;
+      dvr_event_moved(peer_bc, bc);
+    }
+    break;
+
+  default:
+    return 0;
+  }
+  return save;
+}
+#endif /* ENABLE_ISDB */
 
 /* ************************************************************************
  * EIT Event
@@ -738,6 +929,13 @@ static int _eit_process_event_one
       case DVB_DESC_CRID:
         r = _eit_desc_crid(mod, ptr, dlen, &ev, svc);
         break;
+#if ENABLE_ISDB
+      case ISDB_DESC_EVENT_GROUP:
+        /* process later */
+        ev.gdesc_len = dlen;
+        ev.group_descriptor = ptr;
+        break;
+#endif
       default:
         r = 0;
         _eit_dtag_dump(mod, dtag, dlen, ptr);
@@ -808,6 +1006,14 @@ static int _eit_process_event_one
 #endif
     *save |= epg_episode_change_finish(ee, changes4, 0);
   }
+
+#if ENABLE_ISDB
+  /* event group desc is processed last,
+   * as it copies some meta info of ebc in event sharing */
+  if (ev.gdesc_len > 0)
+    *save |= _eit_desc_event_group(mod, ev.group_descriptor, ev.gdesc_len,
+                                   ebc, svc, &changes2);
+#endif
 
   *save |= epg_broadcast_change_finish(ebc, changes2, 0);
 

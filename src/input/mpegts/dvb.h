@@ -184,6 +184,11 @@ struct lang_str;
 #define ATSC_DESC_GENRE               0xAB
 #define ATSC_DESC_PRIVATE_INFO        0xAD
 
+/* Descriptors defined in ARIB-STD B.20 */
+
+#define ISDB_DESC_EVENT_GROUP         0xD6
+
+
 /* Service type lookup */
 
 int dvb_servicetype_lookup ( int t );

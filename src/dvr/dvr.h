@@ -546,6 +546,8 @@ void dvr_rec_unsubscribe(dvr_entry_t *de);
 
 void dvr_rec_migrate(dvr_entry_t *de_old, dvr_entry_t *de_new);
 
+void dvr_event_moved(epg_broadcast_t *e, epg_broadcast_t *new_e);
+
 void dvr_event_replaced(epg_broadcast_t *e, epg_broadcast_t *new_e);
 
 void dvr_event_removed(epg_broadcast_t *e);

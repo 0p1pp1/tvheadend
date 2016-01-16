@@ -478,6 +478,7 @@ epg_serieslink_t *epg_serieslink_deserialize
 #define EPG_CHANGED_IS_REPEAT    (1<<(EPG_CHANGED_SLAST+10))
 #define EPG_CHANGED_EPISODE      (1<<(EPG_CHANGED_SLAST+11))
 #define EPG_CHANGED_SERIESLINK   (1<<(EPG_CHANGED_SLAST+12))
+#define EPG_CHANGED_RELAY_DEST   (1<<(EPG_CHANGED_SLAST+13))
 
 /* Object */
 struct epg_broadcast
@@ -514,6 +515,8 @@ struct epg_broadcast
   LIST_ENTRY(epg_broadcast)  sl_link;          ///< SeriesLink link
   epg_serieslink_t          *serieslink;       ///< SeriesLink;
   struct channel            *channel;          ///< Channel being broadcast on
+
+  uint32_t                   relay_to_id;      ///< Next bc for relayed event
 
 };
 
@@ -578,6 +581,9 @@ int epg_broadcast_set_description
   __attribute__((warn_unused_result));
 int epg_broadcast_set_serieslink
   ( epg_broadcast_t *b, epg_serieslink_t *sl, uint32_t *changed )
+  __attribute__((warn_unused_result));
+int epg_broadcast_set_relay_dest
+  ( epg_broadcast_t *b, uint32_t id, uint32_t *changed )
   __attribute__((warn_unused_result));
 
 /* Accessors */
