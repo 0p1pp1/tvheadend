@@ -39,7 +39,6 @@ typedef struct eit_event
   char              suri[257];
   
   lang_str_t       *title;
-  lang_str_t       *subtitle;
   lang_str_t       *summary;
   lang_str_t       *desc;
 
@@ -146,41 +145,17 @@ static void _eit_isdb_split_title
     0xf0, 0x9f, 0x88, 0x80, /* U+1f200 */
     0
   };
-  static const uint32_t ISDB_EPG_NUM_CONNS[] = {
-    /* , - . ‐ – — • ‥ */
-    0x002c, 0x002d, 0x002e, 0x2010, 0x2013, 0x2014, 0x2022, 0x2025,
-    /* … − 、 〜 ・ ー ， － */
-    0x2026, 0x2212, 0x3001, 0x301c, 0x30fb, 0x30fc, 0xff0c, 0xff0d,
-    /* ～ ､ */
-    0xff5e, 0xff64,
-    0
-  };
-  static const uint32_t ISDB_EPG_SPACES[] = {
-    /* SPACE, NON-BREAKING-SPACE, FULLWIDTH-SPACE */
-    0x20, 0xa0, 0x3000,
-    0
-  };
   /* open punctuations (but excluding those used for describing title) */
   static const uint32_t ISDB_EPG_OPEN_PUNC[] = {
     /* « 【 〖 */
     0x00ab, 0x3010, 0x3016,
     /* – — 〜 */
     0x2013, 0x2014, 0x301c,
-#if 0
-    /* « ‘ “ 「 「 【 〖 〝 ｢  */
-    0x00ab, 0x2018, 0x201c, 0x300c, 0x300e, 0x3010, 0x3016, 0x301d, 0xff62,
-    /* " ' – — ′ ″ 〜 ＂ ＇ */
-    0x0022, 0x0027, 0x2013, 0x2014, 0x2032, 0x2033, 0x301c, 0xff02, 0xff07,
-#endif
     0
   };
   static const uint32_t ISDB_EPG_CLOSE_PUNC[] = {
     0x00bb, 0x3011, 0x3017,
     0x2013, 0x2014, 0x301c,
-#if 0
-    0x00bb, 0x2019, 0x201d, 0x300d, 0x300f, 0x3011, 0x3017, 0x301f, 0xff63,
-    0x0022, 0x0027, 0x2013, 0x2014, 0x2032, 0x2033, 0x301c, 0xff02, 0xff07,
-#endif
     0
   };
   static const uint8_t ISDB_EPG_DELIM_CHARS[] = {
@@ -229,134 +204,6 @@ static void _eit_isdb_split_title
       *sub = p;
       return;
     }
-  }
-
-  /* if the text contains "#\d+[-－～・]#?\d+", it indicates the title end */
-  p = u8_strrchr(*title, 0x23); /* '#' */
-  if (!p)
-    p = u8_strrchr(*title, 0xff03); /* '＃' */
-  while (1) { /* run only once */
-    const uint8_t *q;
-
-    if (!p || p == *title)
-      break;
-
-    p = u8_next(&uc, p); /* skip '#' char */
-    p = u8_next(&uc, p);
-
-    q = p;
-    while ( p && uc_is_general_category(uc, UC_DECIMAL_DIGIT_NUMBER) )
-      p = u8_next(&uc, p);
-
-    /* if p == q, then the text ends with '#' or non digit follows '#'. */
-    if (p == q)
-      break;
-
-    /* if p == NULL, the text ends with "#nnn". no subtitle. */
-    if (!p)
-      return;
-
-    /* now, uc is non-digit */
-    while (u32_strchr(ISDB_EPG_NUM_CONNS, uc)) {
-      /* ex. #i-j #i,j (but not #i,#j) */
-      p = u8_next(&uc, p);
-      while (p && uc_is_general_category(uc, UC_DECIMAL_DIGIT_NUMBER))
-        p = u8_next(&uc, p);
-
-      if (!p)
-        return;
-    }
-
-    *sub = u8_prev(&uc, p, *title);
-    return;
-  }
-
-  /* check ' [第]...{話|回} ' */
-#define ISDB_CHAR_WA (0x8a71)
-#define ISDB_CHAR_KAI (0x56de)
-#define ISDB_CHAR_DAI (0x7b2c)
-  p = u8_strrchr(*title, ISDB_CHAR_WA);
-  if (!p)
-    p = u8_strrchr(*title, ISDB_CHAR_KAI);
-
-  while ( p ) {
-    const uint8_t *q;
-    ucs4_t tail_char;
-
-    u8_next(&tail_char, p);
-    q = u8_prev(&uc, p, *title);
-    while ( q && q != *title && uc_is_general_category(uc, UC_DECIMAL_DIGIT_NUMBER) )
-      q = u8_prev(&uc, q, *title);
-
-    if (!q || q == *title)
-      break;
-
-    /* no digits found. */
-    if (u8_next(&uc, q) == p)
-      goto try_next;
-
-    while (u32_strchr(ISDB_EPG_NUM_CONNS, uc)) {
-      const uint8_t *r;
-
-      /* ex. [第]i-j話  [第]i,j,k話  [第]i話,j話 */
-
-      q = u8_prev(&uc, q, *title);
-      if (q && uc == tail_char)
-        q = u8_prev(&uc, q, *title);
-      r = q;
-      while ( q && q != *title
-              && uc_is_general_category(uc, UC_DECIMAL_DIGIT_NUMBER) )
-        q = u8_prev(&uc, q, *title);
-      if (!q || q == *title)
-        break;
-
-      if (r == q)
-        goto try_next; /* no digits found */
-    }
-    if (!q || q == *title)
-      break;
-
-    if ( !(uc == ISDB_CHAR_DAI
-           || (u32_strchr(ISDB_EPG_SPACES, uc) && tail_char != ISDB_CHAR_KAI)) )
-      goto try_next;
-
-    /* chars preceding tail_char are OK. */
-    /* now, check the char following tail_char */
-    p = u8_next(&uc, p); /* skip tail_char */
-    if (*p == '\0')
-      return;
-
-    /* Since '第i回 xxx大会' is often used as a part of title itself, */
-    /* tail_char of ISDB_CHAR_KAI requires trailing "\w*「.+」$" */
-    u8_next(&uc, p);
-    if (u32_strchr(ISDB_EPG_SPACES, uc)) {
-      while ( (p = u8_next(&uc, p)) && u32_strchr(ISDB_EPG_SPACES, uc) );
-      if (!p)
-        return;
-      if (tail_char == ISDB_CHAR_WA) {
-        *sub = u8_prev(&uc, p, *title);
-        return;
-      }
-    }
-
-    if (tail_char == ISDB_CHAR_WA && uc_is_general_category(uc, UC_PUNCTUATION)) {
-      *sub = u8_prev(&uc, p, *title);
-      return;
-    } else if (tail_char == ISDB_CHAR_KAI && uc == 0x300c /* 「 */) {
-      const uint8_t *r = u8_strchr(p, 0x300d /* 」*/);
-
-      if (!r)
-        break;
-      r = u8_next(&uc, r);
-      if (*r != '\0')
-        break;
-
-      *sub = u8_prev(&uc, p, *title);
-      return;
-    }
-
-try_next:
-    for (p = q; (p = u8_prev(&uc, p, *title)) && uc != tail_char; );
   }
 
   /* if the last char is in ISDB_EPG_CLOSE_PUNC.. */
@@ -430,9 +277,9 @@ static int _eit_desc_short_event
     if (!title || !*title)
       return -1;
 
-    if (sub) {
-      if (!ev->subtitle) ev->subtitle = lang_str_create();
-      lang_str_add(ev->subtitle, sub, "jpn", 0);
+    if (!strempty(sub)) {
+      if (!ev->summary) ev->summary = lang_str_create();
+      lang_str_add(ev->summary, sub, "jpn", 0);
       *sub = '\0';
     }
     if (!ev->title) ev->title = lang_str_create();
@@ -453,13 +300,20 @@ static int _eit_desc_short_event
     return -1;
   } else if ( r > 1 ) {
     if (!ev->summary) ev->summary = lang_str_create();
-    lang_str_add(ev->summary, buf, lang, 0);
 #if ENABLE_ISDB
-    if (extra && *extra) {
+    if (!lang_str_empty(ev->summary)) {
+      lang_str_append(ev->summary, "\n", lang);
+      lang_str_append(ev->summary, buf, lang);
+    } else
+      lang_str_add(ev->summary, buf, lang, 0);
+
+    if (!strempty(extra)) {
       lang_str_append(ev->summary, "\n", lang);
       lang_str_append(ev->summary, extra, lang);
     }
-#endif
+#else
+    lang_str_add(ev->summary, buf, lang, 0);
+#endif /* !ENABLE_ISDB */
   }
 
   return 0;
@@ -942,8 +796,6 @@ static int _eit_process_event_one
       *save |= epg_episode_set_age_rating(ee, ev.parental, &changes4);
     if (ev.summary)
       *save |= epg_episode_set_summary(ee, ev.summary, &changes4);
-    if ( ev.subtitle )
-      *save |= epg_episode_set_subtitle(ee, ev.subtitle, &changes4);
 #if TODO_ADD_EXTRA
     if (ev.extra)
       *save |= epg_episode_set_extra(ee, extra, &changes4);
