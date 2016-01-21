@@ -1976,6 +1976,7 @@ dvb_fs_sdt_callback
 #define PMT_UPDATE_PARENT_PID         0x800
 #define PMT_UPDATE_CAID_DELETED       0x1000
 #define PMT_REORDERED                 0x2000
+#define PMT_UPDATE_STREAM_TAG         0x4000
 
 /**
  * Add a CA descriptor
@@ -2148,6 +2149,7 @@ psi_parse_pmt
   int update = 0;
   int composition_id;
   int ancillary_id;
+  int stream_tag;
   int version;
   int position;
   int tt_position;
@@ -2214,6 +2216,7 @@ psi_parse_pmt
     hts_stream_type = SCT_UNKNOWN;
     composition_id = -1;
     ancillary_id = -1;
+    stream_tag = STREAM_TAG_NONE;
     position = 0;
     tt_position = 1000;
     lang = NULL;
@@ -2327,6 +2330,10 @@ psi_parse_pmt
           hts_stream_type = SCT_EAC3;
         break;
 
+      case DVB_DESC_STREAM_ID:
+        stream_tag = ptr[0];
+        break;
+
       default:
         break;
       }
@@ -2377,6 +2384,11 @@ psi_parse_pmt
         st->es_ancillary_id = ancillary_id;
         update |= PMT_UPDATE_ANCILLARY_ID;
       }
+
+      if(stream_tag != STREAM_TAG_NONE && st->es_stream_tag != stream_tag) {
+        st->es_stream_tag = stream_tag;
+        update |= PMT_UPDATE_STREAM_TAG;
+      }
     }
     position++;
   }
@@ -2406,7 +2418,7 @@ psi_parse_pmt
 
   if(update) {
     tvhdebug("pmt", "Service \"%s\" PMT (version %d) updated"
-     "%s%s%s%s%s%s%s%s%s%s%s%s%s",
+     "%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
      service_nicename((service_t*)t), version,
      update&PMT_UPDATE_PCR               ? ", PCR PID changed":"",
      update&PMT_UPDATE_NEW_STREAM        ? ", New elementary stream":"",
@@ -2414,6 +2426,7 @@ psi_parse_pmt
      update&PMT_UPDATE_FRAME_DURATION    ? ", Frame duration changed":"",
      update&PMT_UPDATE_COMPOSITION_ID    ? ", Composition ID changed":"",
      update&PMT_UPDATE_ANCILLARY_ID      ? ", Ancillary ID changed":"",
+     update&PMT_UPDATE_STREAM_TAG        ? ", Stream ID (tag) changed":"",
      update&PMT_UPDATE_STREAM_DELETED    ? ", Stream deleted":"",
      update&PMT_UPDATE_NEW_CA_STREAM     ? ", New CA stream":"",
      update&PMT_UPDATE_NEW_CAID          ? ", New CAID":"",

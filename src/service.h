@@ -69,7 +69,12 @@ typedef struct elementary_stream {
   uint16_t es_aspect_den;
 
   char es_lang[4];           /* ISO 639 2B 3-letter language code */
+  char es_lang_sub[4];       /* lang code for dual-mono sub channel */
   uint8_t es_audio_type;     /* Audio type */
+
+  uint8_t es_is_dmono;       /* flag to indicate if dual mono */
+#define STREAM_TAG_NONE 0xff
+  uint8_t es_stream_tag;      /* Stream ID/tag */
 
   uint16_t es_composition_id;
   uint16_t es_ancillary_id;
@@ -541,6 +546,8 @@ service_stream_find(service_t *t, int pid)
   else
     return t->s_last_es;
 }
+
+elementary_stream_t *service_stream_find_tag(service_t *t, uint8_t tag);
 
 elementary_stream_t *service_stream_create(service_t *t, int pid,
 				     streaming_component_type_t type);

@@ -59,6 +59,20 @@ typedef struct eit_event
   const uint8_t    *group_descriptor;
 #endif
 
+  /* stream component props */
+  struct {
+    uint8_t         tag;
+    uint8_t         lang[4], lang_sub[4];
+    uint8_t         is_dmono;
+    uint8_t         channels; /* unused */
+    uint8_t         sri;      /* unused */
+
+    uint16_t        width;
+    uint16_t        height;
+    uint16_t        aspect_num;
+    uint16_t        aspect_den;
+  }                 sct_props;
+#endif
 } eit_event_t;
 
 /* ************************************************************************
@@ -466,6 +480,51 @@ static int _eit_desc_component
   c = *ptr & 0x0f;
   t = ptr[1];
 
+#if ENABLE_ISDB
+  /* TODO: support multiple video streams(components) per service */
+  if (c != 0x01) return -1;
+  memset(&ev->sct_props, 0, sizeof(ev->sct_props));
+  ev->sct_props.tag = ptr[2];
+
+  switch (t & 0xf0) {
+  case 0:
+  case 0xa0: ev->sct_props.height =  480; break;
+  case 0xb0: ev->sct_props.height = 1080; break;
+  case 0xc0: ev->sct_props.height =  720; break;
+  case 0xd0: ev->sct_props.height =  240; break;
+  default:   return -1;
+  }
+
+  switch (t & 0x0f) {
+  case 1:
+    ev->sct_props.aspect_num = 4;
+    ev->sct_props.aspect_den = 3;
+    ev->sct_props.width = ev->sct_props.height * 4 / 3;
+    break;
+  case 3:
+    ev->sct_props.aspect_num = 16;
+    ev->sct_props.aspect_den = 9;
+    ev->sct_props.width = ev->sct_props.height * 16 / 9;
+    break;
+  case 4:
+    /* > 16:9. assume 2.4:1 for now (ES will update it later) */
+    ev->sct_props.aspect_num = 12;
+    ev->sct_props.aspect_den = 5;
+    break;
+  default:
+    return -1;
+  }
+
+  memcpy(ev->sct_props.lang, &ptr[3], 3);
+
+  if (ptr[2] == 0) { /* tag == 0: main video ES */
+    ev->ws = (ev->sct_props.aspect_num != 4);
+    ev->hd = (ev->sct_props.height >= 720);
+  }
+
+  return 0;
+#else  /* ENABLE_ISDB */
+
   /* MPEG2 (video) */
   if (c == 0x1) {
     if (t > 0x08 && t < 0x11) {
@@ -515,6 +574,7 @@ static int _eit_desc_component
   }
 
   return 0;
+#endif  /* !ENABLE_ISDB */
 }
 
 /*
@@ -628,6 +688,56 @@ static int _eit_desc_crid
 }
 
 #if ENABLE_ISDB
+/*
+ * Audio Component Descriptor - 0xC4
+ */
+static int _eit_desc_audio_component
+  ( epggrab_module_t *mod, const uint8_t *ptr, int len, eit_event_t *ev )
+{
+  uint8_t c;
+  uint8_t is_multi_lingual;
+  uint8_t s;
+
+  if (len < 9) return -1;
+
+  memset(&ev->sct_props, 0, sizeof(ev->sct_props));
+
+  /* Stream Content and Type */
+  c = *ptr & 0x0f;
+  ev->sct_props.tag = ptr[2];
+  if (c != 0x02 || ptr[3] != 0x0f) return -1;
+
+  ev->sct_props.is_dmono = (ptr[1] == 0x02);
+  switch (ptr[1]) {
+  case 1:
+    ev->sct_props.channels = 1;
+    break;
+  case 2:
+  case 3:
+    ev->sct_props.channels = 2;
+    break;
+  case 7:
+  case 8:
+  case 9:
+    ev->sct_props.channels = ptr[1] - 3;
+    break;
+  default:
+    ev->sct_props.channels = 0;
+  }
+
+  s = (ptr[6] & 0x0e) >> 1;
+  ev->sct_props.sri = (s == 3) ? 6 : (s == 5) ? 5 : (s == 7) ? 3 : 0x0f;
+
+  is_multi_lingual = !!(ptr[6] & 0x80);
+  if (is_multi_lingual && len < 12)
+    return -1;
+
+  memcpy(ev->sct_props.lang, &ptr[7], 3);
+  if (is_multi_lingual)
+    memcpy(ev->sct_props.lang_sub, &ptr[9], 3);
+  return 0;
+}
+
 static epg_broadcast_t *_eit_egroup_get_peerbc
   ( const uint8_t *ptr, mpegts_mux_t *mm, channel_t **ch, uint16_t *eid)
 {
@@ -922,6 +1032,24 @@ static int _eit_process_event_one
         break;
       case DVB_DESC_COMPONENT:
         r = _eit_desc_component(mod, ptr, dlen, &ev);
+#if ENABLE_ISDB
+        if (r >= 0 && tableid <= 0x4f && sect == 0) {
+          service_t *sv;
+          elementary_stream_t *es;
+
+          sv = (service_t *)svc;
+          pthread_mutex_lock(&sv->s_stream_mutex);
+          es = service_stream_find_tag(sv, ev.sct_props.tag);
+          pthread_mutex_unlock(&sv->s_stream_mutex);
+          if (es) {
+            es->es_stream_tag = ev.sct_props.tag;
+            es->es_aspect_num = ev.sct_props.aspect_num;
+            es->es_aspect_den = ev.sct_props.aspect_den;
+            es->es_height = ev.sct_props.height;
+            es->es_width = ev.sct_props.width;
+          }
+        }
+#endif
         break;
       case DVB_DESC_PARENTAL_RAT:
         r = _eit_desc_parental(mod, ptr, dlen, &ev);
@@ -934,6 +1062,23 @@ static int _eit_process_event_one
         /* process later */
         ev.gdesc_len = dlen;
         ev.group_descriptor = ptr;
+        break;
+      case ISDB_DESC_AUDIO_COMPONENT:
+        r = _eit_desc_audio_component(mod, ptr, dlen, &ev);
+        if (r >= 0 && tableid <= 0x4f && sect == 0) {
+          service_t *sv;
+          elementary_stream_t *es;
+
+          sv = (service_t *)svc;
+          pthread_mutex_lock(&sv->s_stream_mutex);
+          es = service_stream_find_tag(sv, ev.sct_props.tag);
+          pthread_mutex_unlock(&sv->s_stream_mutex);
+          if (es) {
+            es->es_stream_tag = ev.sct_props.tag;
+            es->es_is_dmono = ev.sct_props.is_dmono;
+            memcpy(es->es_lang_sub, ev.sct_props.lang_sub, 4);
+          }
+        }
         break;
 #endif
       default:

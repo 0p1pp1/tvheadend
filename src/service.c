@@ -453,7 +453,8 @@ filter:
         if (esf->esf_type && (esf->esf_type & SCT_MASK(st->es_type)) == 0)
           continue;
         if (esf->esf_language[0] &&
-            strncmp(esf->esf_language, st->es_lang, 4))
+            strncmp(esf->esf_language, st->es_lang, 4) &&
+            strncmp(esf->esf_language, st->es_lang_sub, 4))
           continue;
         if (esf->esf_service[0]) {
           if (strcmp(esf->esf_service, idnode_uuid_as_str(&t->s_id, ubuf)))
@@ -553,7 +554,9 @@ ignore:
                 continue;
               if ((mask & SCT_MASK(st2->es_type)) == 0)
                 continue;
-              if (esf->esf_language[0] != '\0' && strcmp(st2->es_lang, st->es_lang))
+              if (esf->esf_language[0] != '\0'
+                  && strcmp(st2->es_lang, esf->esf_language)
+                  && strcmp(st2->es_lang_sub, esf->esf_language))
                 continue;
               break;
             }
@@ -1054,6 +1057,8 @@ service_stream_create(service_t *t, int pid,
 
   st->es_pid = pid;
 
+  st->es_stream_tag = STREAM_TAG_NONE;
+
   avgstat_init(&st->es_rate, 10);
   avgstat_init(&st->es_cc_errors, 10);
 
@@ -1089,6 +1094,23 @@ service_stream_find_(service_t *t, int pid)
       t->s_last_pid = pid;
       return st;
     }
+  }
+  return NULL;
+}
+
+elementary_stream_t *
+service_stream_find_tag(service_t *t, uint8_t tag)
+{
+  elementary_stream_t *st;
+
+  if (tag == STREAM_TAG_NONE)
+    return NULL;
+
+  lock_assert(&t->s_stream_mutex);
+
+  TAILQ_FOREACH(st, &t->s_components, es_link) {
+    if(st->es_stream_tag == tag)
+      return st;
   }
   return NULL;
 }
@@ -1327,6 +1349,9 @@ service_build_stream_start(service_t *t)
     ssc->ssc_type  = st->es_type;
 
     memcpy(ssc->ssc_lang, st->es_lang, 4);
+    memcpy(ssc->ssc_lang_sub, st->es_lang_sub, 4);
+    ssc->ssc_is_dmono = st->es_is_dmono;
+    ssc->ssc_stream_tag = st->es_stream_tag;
     ssc->ssc_audio_type = st->es_audio_type;
     ssc->ssc_composition_id = st->es_composition_id;
     ssc->ssc_ancillary_id = st->es_ancillary_id;
@@ -1788,12 +1813,17 @@ void service_save ( service_t *t, htsmsg_t *m )
     htsmsg_add_u32(sub, "pid", st->es_pid);
     htsmsg_add_str(sub, "type", streaming_component_type2txt(st->es_type));
     htsmsg_add_u32(sub, "position", st->es_position);
+    htsmsg_add_u32(sub, "stream_tag", st->es_stream_tag);
 
     if(st->es_lang[0])
       htsmsg_add_str(sub, "language", st->es_lang);
 
-    if (SCT_ISAUDIO(st->es_type))
+    if (SCT_ISAUDIO(st->es_type)) {
       htsmsg_add_u32(sub, "audio_type", st->es_audio_type);
+      if(st->es_lang_sub[0])
+        htsmsg_add_str(sub, "language_sub", st->es_lang_sub);
+      htsmsg_add_u32(sub, "is_dmono", st->es_is_dmono);
+    }
 
     if(st->es_type == SCT_CA) {
       caid_t *c;
@@ -1972,9 +2002,16 @@ void service_load ( service_t *t, htsmsg_t *c )
       if((v = htsmsg_get_str(c, "language")) != NULL)
         strncpy(st->es_lang, lang_code_get(v), 3);
 
+      if (htsmsg_get_u32(c, "stream_tag", &u32))
+        st->es_stream_tag = u32;
+
       if (SCT_ISAUDIO(type)) {
         if(!htsmsg_get_u32(c, "audio_type", &u32))
           st->es_audio_type = u32;
+        if (htsmsg_get_u32(c, "is_dmono", &u32))
+          st->es_is_dmono = u32;
+        if((v = htsmsg_get_str(c, "language_sub")) != NULL)
+          strncpy(st->es_lang_sub, lang_code_get(v), 3);
       }
 
       if(!htsmsg_get_u32(c, "position", &u32))

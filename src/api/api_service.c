@@ -83,6 +83,8 @@ api_service_streams_get_one ( elementary_stream_t *es, int use_filter )
     htsmsg_add_u32(e, "ancillary_id",   es->es_ancillary_id);
   } else if (SCT_ISAUDIO(es->es_type)) {
     htsmsg_add_u32(e, "audio_type",     es->es_audio_type);
+    htsmsg_add_str(e, "language_sub", es->es_lang_sub);
+    htsmsg_add_u32(e, "is_dmono", es->es_is_dmono);
   } else if (SCT_ISVIDEO(es->es_type)) {
     htsmsg_add_u32(e, "width",          es->es_width);
     htsmsg_add_u32(e, "height",         es->es_height);

@@ -186,6 +186,7 @@ struct lang_str;
 
 /* Descriptors defined in ARIB-STD B.20 */
 
+#define ISDB_DESC_AUDIO_COMPONENT     0xC4
 #define ISDB_DESC_EVENT_GROUP         0xD6
 
 
