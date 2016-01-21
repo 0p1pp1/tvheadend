@@ -244,6 +244,7 @@ dvb_psi_parse_pmt
   uint32_t update = 0;
   int composition_id;
   int ancillary_id;
+  int stream_tag;
   int version;
   int position;
   int tt_position;
@@ -309,6 +310,7 @@ dvb_psi_parse_pmt
     hts_stream_type = SCT_UNKNOWN;
     composition_id = -1;
     ancillary_id = -1;
+    stream_tag = STREAM_TAG_NONE;
     position = 0;
     tt_position = 1000;
     lang = NULL;
@@ -437,6 +439,10 @@ dvb_psi_parse_pmt
           hts_stream_type = SCT_EAC3;
         break;
 
+      case DVB_DESC_STREAM_ID:
+        stream_tag = ptr[0];
+        break;
+
       default:
         break;
       }
@@ -502,6 +508,11 @@ dvb_psi_parse_pmt
         update |= PMT_UPDATE_ANCILLARY_ID;
       }
 
+      if(stream_tag != STREAM_TAG_NONE && st->es_stream_tag != stream_tag) {
+        st->es_stream_tag = stream_tag;
+        update |= PMT_UPDATE_STREAM_TAG;
+      }
+
       if (st->es_pid == set->set_pcr_pid)
         pcr_shared = 1;
     }
@@ -540,7 +551,7 @@ dvb_psi_parse_pmt
 
   if (update) {
     tvhdebug(mt->mt_subsys, "%s: Service \"%s\" PMT (version %d) updated"
-     "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+     "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
      mt->mt_name,
      nicename, version,
      update&PMT_UPDATE_PCR               ? ", PCR PID changed":"",
@@ -558,7 +569,8 @@ dvb_psi_parse_pmt
      update&PMT_UPDATE_CA_PROVIDER_CHANGE? ", CA provider changed":"",
      update&PMT_UPDATE_CAID_DELETED      ? ", CAID deleted":"",
      update&PMT_UPDATE_CAID_PID          ? ", CAID PID changed":"",
-     update&PMT_REORDERED                ? ", PIDs reordered":"");
+     update&PMT_REORDERED                ? ", PIDs reordered":"",
+     update&PMT_UPDATE_STREAM_TAG        ? ", Stream ID (tag) changed":"");
   }
 
   return update;

@@ -99,6 +99,10 @@ struct elementary_info {
   uint16_t es_aspect_den;
 
   char es_lang[4];           /* ISO 639 2B 3-letter language code */
+  char es_lang_sub[4];       /* lang code for dual-mono sub channel */
+  uint8_t es_is_dmono;       /* flag to indicate if dual mono */
+#define STREAM_TAG_NONE 0xff
+  uint8_t es_stream_tag;
   uint8_t es_audio_type;     /* Audio type */
   uint8_t es_audio_version;  /* Audio version/layer */
   uint8_t es_sri;
@@ -184,6 +188,7 @@ static inline elementary_stream_t *elementary_stream_find
     else
       return set->set_last_es;
   }
+elementary_stream_t *elementary_stream_find_tag(elementary_set_t *set, uint8_t tag);
 elementary_stream_t *elementary_stream_find_parent(elementary_set_t *set, int pid, int parent_pid);
 elementary_stream_t *elementary_stream_type_modify
   (elementary_set_t *set, int pid, streaming_component_type_t type);

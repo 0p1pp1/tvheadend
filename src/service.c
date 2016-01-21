@@ -1625,6 +1625,7 @@ void service_save ( service_t *t, htsmsg_t *m )
     htsmsg_add_u32(sub, "pid", st->es_pid);
     htsmsg_add_str(sub, "type", streaming_component_type2txt(st->es_type));
     htsmsg_add_u32(sub, "position", st->es_position);
+    htsmsg_add_u32(sub, "stream_tag", st->es_stream_tag);
 
     if(st->es_lang[0])
       htsmsg_add_str(sub, "language", st->es_lang);
@@ -1633,6 +1634,9 @@ void service_save ( service_t *t, htsmsg_t *m )
       htsmsg_add_u32(sub, "audio_type", st->es_audio_type);
       if (st->es_audio_version)
         htsmsg_add_u32(sub, "audio_version", st->es_audio_version);
+      if(st->es_lang_sub[0])
+        htsmsg_add_str(sub, "language_sub", st->es_lang_sub);
+      htsmsg_add_u32(sub, "is_dmono", st->es_is_dmono);
     }
 
     if(st->es_type == SCT_CA) {
@@ -1820,11 +1824,18 @@ void service_load ( service_t *t, htsmsg_t *c )
       if((v = htsmsg_get_str(c, "language")) != NULL)
         strlcpy(st->es_lang, lang_code_get(v), 4);
 
+      if (htsmsg_get_u32(c, "stream_tag", &u32))
+        st->es_stream_tag = u32;
+
       if (SCT_ISAUDIO(type)) {
         if(!htsmsg_get_u32(c, "audio_type", &u32))
           st->es_audio_type = u32;
         if(!htsmsg_get_u32(c, "audio_version", &u32))
           st->es_audio_version = u32;
+        if (htsmsg_get_u32(c, "is_dmono", &u32))
+          st->es_is_dmono = u32;
+        if((v = htsmsg_get_str(c, "language_sub")) != NULL)
+          strncpy(st->es_lang_sub, lang_code_get(v), 3);
       }
 
       if(!htsmsg_get_u32(c, "position", &u32))
