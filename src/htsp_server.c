@@ -4067,6 +4067,7 @@ htsp_subscription_start(htsp_subscription_t *hs, const streaming_start_t *ss)
     else
       type = streaming_component_type2txt(ssc->ssc_type);
     htsmsg_add_str(c, "type", type);
+    htsmsg_add_u32(c, "stream_tag", ssc->ssc_stream_tag);
     if(ssc->ssc_lang[0])
       htsmsg_add_str(c, "language", ssc->ssc_lang);
     
@@ -4094,6 +4095,9 @@ htsp_subscription_start(htsp_subscription_t *hs, const streaming_start_t *ss)
       htsmsg_add_u32(c, "audio_type", ssc->ssc_audio_type);
       if (ssc->ssc_audio_version)
         htsmsg_add_u32(c, "audio_version", ssc->ssc_audio_version);
+      htsmsg_add_u32(c, "is_dmono", ssc->ssc_is_dmono);
+      if(ssc->ssc_lang_sub[0])
+        htsmsg_add_str(c, "language_sub", ssc->ssc_lang_sub);
       if (ssc->ssc_channels)
         htsmsg_add_u32(c, "channels", ssc->ssc_channels);
       if (ssc->ssc_sri)

@@ -1094,6 +1094,7 @@ dvb_cat_callback
 #define PMT_UPDATE_CAID_DELETED       (1<<14)
 #define PMT_UPDATE_CAID_PID           (1<<15)
 #define PMT_REORDERED                 (1<<16)
+#define PMT_UPDATE_STREAM_TAG         (1<<24)
 
 int
 dvb_pmt_callback
@@ -2330,6 +2331,7 @@ psi_parse_pmt
   int update = 0;
   int composition_id;
   int ancillary_id;
+  int stream_tag;
   int version;
   int position;
   int tt_position;
@@ -2396,6 +2398,7 @@ psi_parse_pmt
     hts_stream_type = SCT_UNKNOWN;
     composition_id = -1;
     ancillary_id = -1;
+    stream_tag = STREAM_TAG_NONE;
     position = 0;
     tt_position = 1000;
     lang = NULL;
@@ -2511,6 +2514,10 @@ psi_parse_pmt
           hts_stream_type = SCT_EAC3;
         break;
 
+      case DVB_DESC_STREAM_ID:
+        stream_tag = ptr[0];
+        break;
+
       default:
         break;
       }
@@ -2574,6 +2581,11 @@ psi_parse_pmt
         st->es_ancillary_id = ancillary_id;
         update |= PMT_UPDATE_ANCILLARY_ID;
       }
+
+      if(stream_tag != STREAM_TAG_NONE && st->es_stream_tag != stream_tag) {
+        st->es_stream_tag = stream_tag;
+        update |= PMT_UPDATE_STREAM_TAG;
+      }
     }
     position++;
   }
@@ -2602,7 +2614,7 @@ psi_parse_pmt
 
   if(update) {
     tvhdebug(mt->mt_subsys, "%s: Service \"%s\" PMT (version %d) updated"
-     "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+     "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
      mt->mt_name,
      service_nicename((service_t*)t), version,
      update&PMT_UPDATE_PCR               ? ", PCR PID changed":"",
@@ -2621,7 +2633,8 @@ psi_parse_pmt
      update&PMT_UPDATE_PARENT_PID        ? ", Parent PID changed":"",
      update&PMT_UPDATE_CAID_DELETED      ? ", CAID deleted":"",
      update&PMT_UPDATE_CAID_PID          ? ", CAID PID changed":"",
-     update&PMT_REORDERED                ? ", PIDs reordered":"");
+     update&PMT_REORDERED                ? ", PIDs reordered":"",
+     update&PMT_UPDATE_STREAM_TAG        ? ", Stream ID (tag) changed":"");
     
     service_request_save((service_t*)t, 1);
 
