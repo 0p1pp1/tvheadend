@@ -1370,10 +1370,15 @@ dvr_rec_start(dvr_entry_t *de, const streaming_start_t *ss)
     if (ssc->es_lang[0])
        htsmsg_add_str(e, "language", ssc->es_lang);
 
+    if (ssc->es_stream_tag != STREAM_TAG_NONE)
+      htsmsg_add_u32(e, "stream_tag", ssc->es_stream_tag);
     if(SCT_ISAUDIO(ssc->es_type)) {
       htsmsg_add_u32(e, "audio_type", ssc->es_audio_type);
       if(ssc->es_audio_version)
         htsmsg_add_u32(e, "audio_version", ssc->es_audio_version);
+      htsmsg_add_u32(e, "is_dmono", ssc->es_is_dmono);
+      if (ssc->es_lang_sub[0])
+         htsmsg_add_str(e, "language_sub", ssc->es_lang_sub);
       if(ssc->es_sri < 16)
 	snprintf(sr, sizeof(sr), "%d", sri_to_rate(ssc->es_sri));
       else
@@ -1417,10 +1422,10 @@ dvr_rec_start(dvr_entry_t *de, const streaming_start_t *ss)
     }
 
     tvhinfo(LS_DVR,
-	   "%2d  %-16s  %-4s  %-10s  %-12s  %-11s  %-8s  %s",
+	   "%2d  %-16s  %-4s/%-4s  %-10s  %-12s  %-11s  %-8s  %s",
 	   ssc->es_index,
 	   streaming_component_type2txt(ssc->es_type),
-	   ssc->es_lang,
+	   ssc->es_lang, ssc->es_lang_sub,
 	   res,
 	   asp,
 	   sr,

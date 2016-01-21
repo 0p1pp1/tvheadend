@@ -289,7 +289,8 @@ filter:
         if (esf->esf_type && (esf->esf_type & SCT_MASK(st->es_type)) == 0)
           continue;
         if (esf->esf_language[0] &&
-            strncmp(esf->esf_language, st->es_lang, 4))
+            strncmp(esf->esf_language, st->es_lang, 4) &&
+            strncmp(esf->esf_language, st->es_lang_sub, 4))
           continue;
         if (esf->esf_service[0]) {
           if (strcmp(esf->esf_service, service_ubuf))
@@ -388,7 +389,9 @@ ignore:
                 continue;
               if ((mask & SCT_MASK(st2->es_type)) == 0)
                 continue;
-              if (esf->esf_language[0] != '\0' && strcmp(st2->es_lang, st->es_lang))
+              if (esf->esf_language[0] != '\0'
+                  && strcmp(st2->es_lang, esf->esf_language)
+                  && strcmp(st2->es_lang_sub, esf->esf_language))
                 continue;
               break;
             }
@@ -475,6 +478,7 @@ create:
 
   st->es_pid = pid;
   st->es_parent_pid = parent_pid > 0 ? parent_pid : 0;
+  st->es_stream_tag = STREAM_TAG_NONE;
 
   elementary_stream_make_nicename(st, set->set_nicename);
 
@@ -499,6 +503,20 @@ elementary_stream_find_(elementary_set_t *set, int pid)
   return NULL;
 }
 
+elementary_stream_t *
+elementary_stream_find_tag(elementary_set_t *set, uint8_t tag)
+{
+  elementary_stream_t *st;
+
+  if (tag == STREAM_TAG_NONE)
+    return NULL;
+
+  TAILQ_FOREACH(st, &set->set_all, es_link) {
+    if (st->es_stream_tag == tag)
+      return st;
+  }
+  return NULL;
+}
 /**
  * Find an elementary stream in a service with specific parent pid
  */
