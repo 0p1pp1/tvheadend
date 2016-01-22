@@ -942,6 +942,35 @@ static int _eit_desc_audio_component
   return 0;
 }
 
+/*
+ * Series Descriptor - 0xD5
+ */
+static int _eit_desc_series
+  ( epggrab_module_t *mod, const uint8_t *ptr, int len, eit_event_t *ev )
+{
+  if (len < 8) return -1;
+
+  ev->en.s_num = ptr[0] << 8 | ptr[1];
+  ev->en.e_num = ptr[5] << 4 | ((ptr[6] & 0xf0) >> 4);
+  ev->en.e_cnt = (ptr[6] & 0x0f) << 4 | ptr[7];
+
+  len -= 8;
+  ptr += 8;
+#if TODO_ADD_EXTRA
+  if (len > 0) {
+    int r;
+    char title[256];
+
+    r = dvb_get_string(title, sizeof(title), ptr, len, "ARIB-STR-B24", NULL);
+    if (r < 0) return -1;
+
+    if (!ev->extra) ev->extra = htsmsg_create_map();
+    htsmsg_add_str(ev->extra, "series_title", title);
+  }
+#endif
+  return 0;
+}
+
 static epg_broadcast_t *_eit_egroup_get_peerbc
   ( const uint8_t *ptr, mpegts_mux_t *mm, channel_t **ch, uint16_t *eid)
 {
@@ -1402,6 +1431,9 @@ static int _eit_process_event
         /* process later */
         ev.gdesc_len = dlen;
         ev.group_descriptor = ptr;
+        break;
+      case ISDB_DESC_SERIES:
+        r = _eit_desc_series(mod, ptr, dlen, &ev);
         break;
       case ISDB_DESC_AUDIO_COMPONENT:
         r = _eit_desc_audio_component(mod, ptr, dlen, &ev);
