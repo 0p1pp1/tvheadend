@@ -120,6 +120,8 @@ int tvhpoll_add
       if (epoll_ctl(tp->fd, EPOLL_CTL_MOD, evs[i].fd, &ev))
         return -1;
     }
+    else if (rc)
+      return -1;
   }
   return 0;
 #elif ENABLE_KQUEUE
