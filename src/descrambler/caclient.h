@@ -29,6 +29,7 @@ extern const idclass_t caclient_cwc_class;
 extern const idclass_t caclient_capmt_class;
 extern const idclass_t caclient_ccw_des_class;
 extern const idclass_t caclient_ccw_aes_class;
+extern const idclass_t caclient_bcas_class;
 
 TAILQ_HEAD(caclient_entry_queue, caclient);
 
@@ -84,5 +85,6 @@ caclient_t *cwc_create(void);
 caclient_t *capmt_create(void);
 caclient_t *constcw_create(void);
 caclient_t *tsdebugcw_create(void);
+caclient_t *bcas_create(void);
 
 #endif /* __TVH_CACLIENT_H__ */

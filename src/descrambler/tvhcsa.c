@@ -168,6 +168,29 @@ tvhcsa_des_descramble
 #endif
 }
 
+#if ENABLE_DEMULTI2
+#include "demulti2/demulti2.h"
+
+static void
+tvhcsa_multi2_flush
+  ( tvhcsa_t *csa, struct mpegts_service *s )
+{
+  /* empty - no queue */
+}
+
+static void
+tvhcsa_multi2_descramble
+  ( tvhcsa_t *csa, struct mpegts_service *s, const uint8_t *tsb, int len )
+{
+  const uint8_t *tsb2, *end2;
+
+  for (tsb2 = tsb, end2 = tsb + len; tsb2 < end2; tsb2 += 188)
+    multi2_decrypt_packet(csa->csa_keys, (unsigned char *) tsb2);
+
+  ts_recv_packet2(s, tsb, len);
+}
+#endif /* ENABLE_DEMULTI2 */
+
 int
 tvhcsa_set_type( tvhcsa_t *csa, int type )
 {
@@ -186,6 +209,13 @@ tvhcsa_set_type( tvhcsa_t *csa, int type )
     csa->csa_flush      = tvhcsa_aes_flush;
     csa->csa_keylen     = 16;
     break;
+#if ENABLE_DEMULTI2
+  case DESCRAMBLER_MULTI2:
+    csa->csa_descramble = tvhcsa_multi2_descramble;
+    csa->csa_flush      = tvhcsa_multi2_flush;
+    csa->csa_keylen     = 8;
+    break;
+#endif
   default:
     assert(0);
   }
@@ -207,6 +237,11 @@ void tvhcsa_set_key_even( tvhcsa_t *csa, const uint8_t *even )
   case DESCRAMBLER_AES:
     aes_set_even_control_word(csa->csa_aes_keys, even);
     break;
+#if ENABLE_DEMULTI2
+  case DESCRAMBLER_MULTI2:
+    multi2_even_key_set(even, csa->csa_keys);
+    break;
+#endif
   default:
     assert(0);
   }
@@ -226,6 +261,11 @@ void tvhcsa_set_key_odd( tvhcsa_t *csa, const uint8_t *odd )
   case DESCRAMBLER_AES:
     aes_set_odd_control_word(csa->csa_aes_keys, odd);
     break;
+#if ENABLE_DEMULTI2
+  case DESCRAMBLER_MULTI2:
+    multi2_odd_key_set(odd, csa->csa_keys);
+    break;
+#endif
   default:
     assert(0);
   }
@@ -252,6 +292,8 @@ tvhcsa_init ( tvhcsa_t *csa )
                                    sizeof(struct dvbcsa_bs_batch_s));
   csa->csa_key_even      = dvbcsa_bs_key_alloc();
   csa->csa_key_odd       = dvbcsa_bs_key_alloc();
+#elif ENABLE_DEMULTI2
+  csa->csa_keys          = multi2_get_key_struct();
 #else
   csa->csa_keys          = get_key_struct();
 #endif
@@ -266,6 +308,8 @@ tvhcsa_destroy ( tvhcsa_t *csa )
   dvbcsa_bs_key_free(csa->csa_key_even);
   free(csa->csa_tsbbatch_odd);
   free(csa->csa_tsbbatch_even);
+#elif ENABLE_DEMULTI2
+  multi2_free_key_struct(csa->csa_keys);
 #else
   free_key_struct(csa->csa_keys);
 #endif

@@ -58,6 +58,8 @@ OPTIONS=(
   "libsystemd_daemon:no"
   "bintray_cache:yes"
   "isdb:yes"
+  "demulti2:auto"
+  "unaligned:auto"
 )
 
 #
@@ -658,12 +660,43 @@ fi
 #
 # ISDB
 #
+if enabled isdb && enabled_or_auto demulti2; then
+  printf "$TAB" "checking for libyakisoba ..."
+  if check_cc '
+  #include <stdint.h>
+  #include <stdlib.h>
+  extern int bcas_decodeECM(const uint8_t *, uint32_t, uint8_t *, uint8_t *);
+  int test(void)
+  {
+    bcas_decodeECM(NULL, 0, NULL, NULL);
+    return 0;
+  }
+  ' '-lyakisoba' ; then
+    echo 'ok'
+    enable demulti2
+    LDFLAGS="${LDFLAGS} -lyakisoba"
+  elif enabled demulti2; then
+    echo 'failed'
+    die "libyakisoba not found. Set CFLAGS/LDFLAGS and re-run configure."
+  else
+    echo 'failed'
+  fi
+fi
+
 if enabled isdb; then
   if check_cc_lib unistring; then
     LDFLAGS="${LDFLAGS} -lunistring"
   else
     die "libunistring not found. Install it or disable ISDB."
   fi
+fi
+
+if [ $(_enabled unaligned) = "auto" ]; then
+  disable unaligned
+
+  case x"$ARCH" in
+  xi?86 | xx86_64) enable unaligned;;
+  esac
 fi
 
 # ###########################################################################

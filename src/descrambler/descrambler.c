@@ -872,11 +872,17 @@ descrambler_table_callback
                 tvhdebug("descrambler", "quick ECM enabled for service '%s'",
                          t->s_dvb_svcname);
             }
+#if ENABLE_ISDB
+            dr->dr_ecm_start[0] = dr->dr_ecm_start[1] = dispatch_clock;
+            if (dr->dr_quick_ecm)
+              dr->dr_key_valid &= ~(0xc0);
+#else
             if ((ptr[0] & 0xfe) == 0x80) { /* 0x80 = even, 0x81 = odd */
               dr->dr_ecm_start[ptr[0] & 1] = dispatch_clock;
               if (dr->dr_quick_ecm)
                 dr->dr_key_valid &= ~(1 << ((ptr[0] & 1) + 6)); /* 0x40 = even, 0x80 = odd */
             }
+#endif  /* ENABLE_ISDB */
             tvhtrace("descrambler", "ECM message %02x (section %d, len %d, pid %d) for service \"%s\"",
                      ptr[0], des->number, len, mt->mt_pid, t->s_dvb_svcname);
           }

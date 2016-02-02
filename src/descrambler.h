@@ -34,6 +34,7 @@ struct th_descrambler_data;
 #define DESCRAMBLER_NONE 0
 #define DESCRAMBLER_DES  1
 #define DESCRAMBLER_AES  2
+#define DESCRAMBLER_MULTI2 3
 
 /**
  * Descrambler superclass

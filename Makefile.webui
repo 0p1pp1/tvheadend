@@ -105,6 +105,7 @@ JAVASCRIPT += $(ROOTPATH)/app/acleditor.js
 
 CACLIENT-$(CONFIG_CWC) = yes
 CACLIENT-$(CONFIG_CAPMT) = yes
+CACLIENT-$(CONFIG_DEMULTI2) = yes
 
 ifeq ($(CACLIENT-yes), yes)
 JAVASCRIPT += $(ROOTPATH)/app/caclient.js

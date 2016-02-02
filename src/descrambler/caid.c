@@ -26,6 +26,7 @@ struct caid_tab {
 };
 
 static struct caid_tab caidnametab[] = {
+  { "Bcas",             CAID_BCAS, 0xffff },
   { "Seca",             0x0100, 0xff00 },
   { "CCETT",            0x0200, 0xff00 },
   { "Deutsche Telekom", 0x0300, 0xff00 },
@@ -124,6 +125,8 @@ detect_card_type(const uint16_t caid)
   uint8_t c_sys = caid >> 8;
 
   switch(caid) {
+    case CAID_BCAS:
+      return CARD_BCAS;
     case 0x4ad2:
       return CARD_STREAMGUARD;
     case 0x5581:

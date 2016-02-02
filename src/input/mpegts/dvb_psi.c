@@ -1993,13 +1993,14 @@ dvb_fs_sdt_callback
 #define PMT_UPDATE_CAID_DELETED       0x1000
 #define PMT_REORDERED                 0x2000
 #define PMT_UPDATE_STREAM_TAG         0x4000
+#define PMT_UPDATE_STREAM_CAID        0x8000
 
 /**
  * Add a CA descriptor
  */
 static int
 psi_desc_add_ca
-  (mpegts_service_t *t, uint16_t caid, uint32_t provid, uint16_t pid)
+  (mpegts_service_t *t, uint16_t caid, uint32_t provid, uint16_t pid, caid_t **ca)
 {
   elementary_stream_t *st;
   caid_t *c;
@@ -2021,6 +2022,7 @@ psi_desc_add_ca
     if(c->caid == caid) {
       c->pid = pid;
 
+      *ca = c;
       if(c->providerid != provid) {
         c->providerid = provid;
         r |= PMT_UPDATE_CA_PROVIDER_CHANGE;
@@ -2031,6 +2033,7 @@ psi_desc_add_ca
 
   c = malloc(sizeof(caid_t));
 
+  *ca = c;
   c->caid = caid;
   c->providerid = provid;
   c->use = 1;
@@ -2044,13 +2047,18 @@ psi_desc_add_ca
  * Parser for CA descriptors
  */
 static int 
-psi_desc_ca(mpegts_service_t *t, const uint8_t *buffer, int size)
+psi_desc_ca(mpegts_service_t *t, const uint8_t *buffer, int size, caid_t **ca)
 {
   int r = 0;
   int i;
   uint32_t provid = 0;
   uint16_t caid = (buffer[0] << 8) | buffer[1];
   uint16_t pid = ((buffer[2]&0x1F) << 8) | buffer[3];
+
+  if (pid == 0x1fff) {
+    *ca = NULL;
+    return 0;
+  }
 
   switch (caid & 0xFF00) {
   case 0x0100: // SECA/Mediaguard
@@ -2061,7 +2069,7 @@ psi_desc_ca(mpegts_service_t *t, const uint8_t *buffer, int size)
       uint16_t xpid = ((buffer[i]&0x1F) << 8) | buffer[i + 1];
       uint16_t xprovid = (buffer[i + 2] << 8) | buffer[i + 3];
 
-      r |= psi_desc_add_ca(t, caid, xprovid, xpid);
+      r |= psi_desc_add_ca(t, caid, xprovid, xpid, ca);
     }
     break;
   case 0x0500:// Viaccess
@@ -2089,7 +2097,7 @@ psi_desc_ca(mpegts_service_t *t, const uint8_t *buffer, int size)
     break;
   }
 
-  r |= psi_desc_add_ca(t, caid, provid, pid);
+  r |= psi_desc_add_ca(t, caid, provid, pid, ca);
 
   return r;
 }
@@ -2174,6 +2182,7 @@ psi_parse_pmt
   uint8_t audio_type;
 
   caid_t *c, *cn;
+  caid_t *svc_caid, *st_caid;
 
   lock_assert(&t->s_stream_mutex);
 
@@ -2198,6 +2207,8 @@ psi_parse_pmt
       c->pid = CAID_REMOVE_ME;
   }
 
+  svc_caid = NULL;
+
   // Common descriptors
   while(dllen > 1) {
     dtag = ptr[0];
@@ -2210,7 +2221,7 @@ psi_parse_pmt
 
     switch(dtag) {
     case DVB_DESC_CA:
-      update |= psi_desc_ca(t, ptr, dlen);
+      update |= psi_desc_ca(t, ptr, dlen, &svc_caid);
       break;
 
     default:
@@ -2238,6 +2249,7 @@ psi_parse_pmt
     lang = NULL;
     audio_type = 0;
     video_stream = 0;
+    st_caid = svc_caid;
 
     switch(estype) {
     case 0x01:
@@ -2292,7 +2304,7 @@ psi_parse_pmt
 
       switch(dtag) {
       case DVB_DESC_CA:
-        update |= psi_desc_ca(t, ptr, dlen);
+        update |= psi_desc_ca(t, ptr, dlen, &st_caid);
         break;
 
       case DVB_DESC_VIDEO_STREAM:
@@ -2405,6 +2417,13 @@ psi_parse_pmt
         st->es_stream_tag = stream_tag;
         update |= PMT_UPDATE_STREAM_TAG;
       }
+
+#if ENABLE_ISDB
+      if(st->es_stream_caid != st_caid && (!st_caid || st_caid->caid == CAID_BCAS)) {
+        st->es_stream_caid = st_caid;
+        update |= PMT_UPDATE_STREAM_CAID;
+      }
+#endif
     }
     position++;
   }
@@ -2434,7 +2453,7 @@ psi_parse_pmt
 
   if(update) {
     tvhdebug("pmt", "Service \"%s\" PMT (version %d) updated"
-     "%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+     "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
      service_nicename((service_t*)t), version,
      update&PMT_UPDATE_PCR               ? ", PCR PID changed":"",
      update&PMT_UPDATE_NEW_STREAM        ? ", New elementary stream":"",
@@ -2443,6 +2462,7 @@ psi_parse_pmt
      update&PMT_UPDATE_COMPOSITION_ID    ? ", Composition ID changed":"",
      update&PMT_UPDATE_ANCILLARY_ID      ? ", Ancillary ID changed":"",
      update&PMT_UPDATE_STREAM_TAG        ? ", Stream ID (tag) changed":"",
+     update&PMT_UPDATE_STREAM_CAID       ? ", Stream CAID changed":"",
      update&PMT_UPDATE_STREAM_DELETED    ? ", Stream deleted":"",
      update&PMT_UPDATE_NEW_CA_STREAM     ? ", New CA stream":"",
      update&PMT_UPDATE_NEW_CAID          ? ", New CAID":"",
@@ -2456,7 +2476,8 @@ psi_parse_pmt
     // Only restart if something that our clients worry about did change
     if(update & ~(PMT_UPDATE_NEW_CA_STREAM |
       PMT_UPDATE_NEW_CAID |
-      PMT_UPDATE_CA_PROVIDER_CHANGE | 
+      PMT_UPDATE_CA_PROVIDER_CHANGE |
+      PMT_UPDATE_STREAM_CAID |
       PMT_UPDATE_CAID_DELETED)) {
       if(t->s_status == SERVICE_RUNNING)
         ret = 1;

@@ -138,7 +138,7 @@ const char      *tvheadend_cwd0;
 const char      *tvheadend_cwd;
 const char      *tvheadend_webroot;
 const tvh_caps_t tvheadend_capabilities[] = {
-#if ENABLE_CWC || ENABLE_CAPMT || ENABLE_CONSTCW
+#if ENABLE_CWC || ENABLE_CAPMT || ENABLE_CONSTCW || ENABLE_DEMULTI2
   { "caclient", NULL },
 #endif
 #if ENABLE_LINUXDVB || ENABLE_SATIP_CLIENT || ENABLE_HDHOMERUN_CLIENT
