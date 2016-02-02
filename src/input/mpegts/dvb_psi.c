@@ -1106,6 +1106,7 @@ dvb_cat_callback
 #define PMT_UPDATE_CAID_PID           (1<<15)
 #define PMT_REORDERED                 (1<<16)
 #define PMT_UPDATE_STREAM_TAG         (1<<24)
+#define PMT_UPDATE_STREAM_CAID        (1<<25)
 
 int
 dvb_pmt_callback
@@ -2166,7 +2167,7 @@ dvb_fs_sdt_callback
 static int
 psi_desc_add_ca
   (mpegts_table_t *mt, mpegts_service_t *t,
-   uint16_t caid, uint32_t provid, uint16_t pid)
+   uint16_t caid, uint32_t provid, uint16_t pid, caid_t **ca)
 {
   elementary_stream_t *st;
   caid_t *c;
@@ -2190,6 +2191,7 @@ psi_desc_add_ca
         r |= PMT_UPDATE_CAID_PID;
       c->pid = pid;
 
+      *ca = c;
       if(c->providerid != provid) {
         c->providerid = provid;
         r |= PMT_UPDATE_CA_PROVIDER_CHANGE;
@@ -2200,6 +2202,7 @@ psi_desc_add_ca
 
   c = malloc(sizeof(caid_t));
 
+  *ca = c;
   c->caid = caid;
   c->providerid = provid;
   c->use = 1;
@@ -2213,7 +2216,9 @@ psi_desc_add_ca
  * Parser for CA descriptors
  */
 static int 
-psi_desc_ca(mpegts_table_t *mt, mpegts_service_t *t, const uint8_t *buffer, int size)
+psi_desc_ca
+  (mpegts_table_t *mt, mpegts_service_t *t,
+   const uint8_t *buffer, int size, caid_t **ca)
 {
   int r = 0;
   int i;
@@ -2226,6 +2231,11 @@ psi_desc_ca(mpegts_table_t *mt, mpegts_service_t *t, const uint8_t *buffer, int 
   caid = extract_2byte(buffer);
   pid = extract_pid(buffer + 2);
 
+  if (pid == 0x1fff) {
+    *ca = NULL;
+    return 0;
+  }
+
   switch (caid & 0xFF00) {
   case 0x0100: // SECA/Mediaguard
     if (size < 6)
@@ -2237,7 +2247,7 @@ psi_desc_ca(mpegts_table_t *mt, mpegts_service_t *t, const uint8_t *buffer, int 
       uint16_t xpid = extract_pid(buffer + i);
       uint16_t xprovid = extract_2byte(buffer + i + 2);
 
-      r |= psi_desc_add_ca(mt, t, caid, xprovid, xpid);
+      r |= psi_desc_add_ca(mt, t, caid, xprovid, xpid, ca);
     }
     break;
   case 0x0500:// Viaccess
@@ -2271,7 +2281,7 @@ psi_desc_ca(mpegts_table_t *mt, mpegts_service_t *t, const uint8_t *buffer, int 
     break;
   }
 
-  r |= psi_desc_add_ca(mt, t, caid, provid, pid);
+  r |= psi_desc_add_ca(mt, t, caid, provid, pid, ca);
 
   return r;
 }
@@ -2356,6 +2366,7 @@ psi_parse_pmt
   uint8_t audio_type, audio_version;
   mpegts_mux_t *mux = mt->mt_mux;
   caid_t *c, *cn;
+  caid_t *svc_caid, *st_caid;
 
   lock_assert(&t->s_stream_mutex);
 
@@ -2380,6 +2391,8 @@ psi_parse_pmt
       c->pid = CAID_REMOVE_ME;
   }
 
+  svc_caid = NULL;
+
   // Common descriptors
   while(dllen > 1) {
     dtag = ptr[0];
@@ -2392,7 +2405,7 @@ psi_parse_pmt
 
     switch(dtag) {
     case DVB_DESC_CA:
-      update |= psi_desc_ca(mt, t, ptr, dlen);
+      update |= psi_desc_ca(mt, t, ptr, dlen, &svc_caid);
       break;
 
     default:
@@ -2421,6 +2434,7 @@ psi_parse_pmt
     audio_type = 0;
     audio_version = 0;
     video_stream = 0;
+    st_caid = svc_caid;
 
     switch(estype) {
     case 0x01:
@@ -2480,7 +2494,7 @@ psi_parse_pmt
 
       switch(dtag) {
       case DVB_DESC_CA:
-        update |= psi_desc_ca(mt, t, ptr, dlen);
+        update |= psi_desc_ca(mt, t, ptr, dlen, &st_caid);
         break;
 
       case DVB_DESC_VIDEO_STREAM:
@@ -2606,6 +2620,13 @@ psi_parse_pmt
         st->es_stream_tag = stream_tag;
         update |= PMT_UPDATE_STREAM_TAG;
       }
+
+#if ENABLE_ISDB
+      if(st->es_stream_caid != st_caid && (!st_caid || st_caid->caid == CAID_BCAS)) {
+        st->es_stream_caid = st_caid;
+        update |= PMT_UPDATE_STREAM_CAID;
+      }
+#endif
     }
     position++;
   }
@@ -2634,7 +2655,7 @@ psi_parse_pmt
 
   if(update) {
     tvhdebug(mt->mt_subsys, "%s: Service \"%s\" PMT (version %d) updated"
-     "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+     "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
      mt->mt_name,
      service_nicename((service_t*)t), version,
      update&PMT_UPDATE_PCR               ? ", PCR PID changed":"",
@@ -2654,7 +2675,8 @@ psi_parse_pmt
      update&PMT_UPDATE_CAID_DELETED      ? ", CAID deleted":"",
      update&PMT_UPDATE_CAID_PID          ? ", CAID PID changed":"",
      update&PMT_REORDERED                ? ", PIDs reordered":"",
-     update&PMT_UPDATE_STREAM_TAG        ? ", Stream ID (tag) changed":"");
+     update&PMT_UPDATE_STREAM_TAG        ? ", Stream ID (tag) changed":"",
+     update&PMT_UPDATE_STREAM_CAID       ? ", Stream CAID changed":"");
     
     service_request_save((service_t*)t, 1);
 
@@ -2663,6 +2685,7 @@ psi_parse_pmt
                   PMT_UPDATE_NEW_CAID |
                   PMT_UPDATE_CA_PROVIDER_CHANGE |
                   PMT_UPDATE_CAID_DELETED |
+                  PMT_UPDATE_STREAM_CAID |
                   PMT_UPDATE_CAID_PID)) {
       if(t->s_status == SERVICE_RUNNING)
         ret = 1;

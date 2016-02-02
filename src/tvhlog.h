@@ -191,6 +191,7 @@ enum {
   LS_SCANFILE,
   LS_TSFILE,
   LS_TSDEBUG,
+  LS_BCAS,
   LS_LAST     /* keep this last */
 };
 

@@ -34,8 +34,11 @@ typedef enum {
   CARD_BULCRYPT,
   CARD_STREAMGUARD,
   CARD_GRIFFIN,
+  CARD_BCAS,
   CARD_UNKNOWN
 } card_type_t;
+
+#define CAID_BCAS 0x0005
 
 const char *caid2name(uint16_t caid);
 uint16_t name2caid(const char *str);
