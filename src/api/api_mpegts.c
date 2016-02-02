@@ -385,7 +385,7 @@ api_dvb_scanfile_list
       e = htsmsg_create_map();
       sprintf(buf, "%s/%s/%s", type, r->sfr_id, n->sfn_id);
       htsmsg_add_str(e, "key", buf);
-      if (strcmp(list->srl_type, "dvb-s")) {
+      if (strcmp(list->srl_type, "dvb-s") && strcmp(list->srl_type, "isdb-s")) {
         sprintf(buf, "%s: %s", r->sfr_name, n->sfn_name);
         htsmsg_add_str(e, "val", buf);
       } else {

@@ -1162,6 +1162,18 @@ static int _eit_process_event_one
 
   /* Broadcast Metadata */
   *save |= epg_broadcast_set_is_hd(ebc, ev.hd, &changes2);
+#if ENABLE_ISDB
+  /* video resolution can change dynamically in ISDB-T */
+  if (tableid <= 0x4f && sect == 0) {
+    int new_stype;
+
+    new_stype = ev.hd ? ST_HDTV : ST_SDTV;
+    if (svc->s_servicetype != new_stype) {
+      svc->s_servicetype = new_stype;
+      idnode_changed(&svc->s_id);
+    }
+  }
+#endif
   *save |= epg_broadcast_set_is_widescreen(ebc, ev.ws, &changes2);
   *save |= epg_broadcast_set_is_audio_desc(ebc, ev.ad, &changes2);
   *save |= epg_broadcast_set_is_subtitled(ebc, ev.st, &changes2);
