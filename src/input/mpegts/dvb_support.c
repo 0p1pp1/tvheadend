@@ -998,6 +998,7 @@ dvb_mux_conf_init ( dvb_mux_conf_t *dmc, dvb_fe_delivery_system_t delsys )
   dmc->dmc_fe_stream_id = DVB_NO_STREAM_ID_FILTER;
   switch (dmc->dmc_fe_type) {
   case DVB_TYPE_S:
+  case DVB_TYPE_ISDB_S:
     dmc->u.dmc_fe_qpsk.orbital_pos = INT_MAX;
     break;
   default:
@@ -1075,6 +1076,32 @@ dvb_mux_conf_str_atsc_t ( dvb_mux_conf_t *dmc, char *buf, size_t bufsize )
            dvb_qam2str(dmc->dmc_fe_modulation));
 }
 
+static int
+dvb_mux_conf_str_isdb_s ( dvb_mux_conf_t *dmc, char *buf, size_t bufsize )
+{
+  const char *pol = dvb_pol2str(dmc->u.dmc_fe_qpsk.polarisation);
+
+  return
+  snprintf(buf, bufsize,
+           "%s freq %d %c ts_id sym %d ts_id %d",
+           dvb_delsys2str(dmc->dmc_fe_delsys),
+           dmc->dmc_fe_freq,
+           pol ? pol[0] : 'X',
+           dmc->u.dmc_fe_qpsk.symbol_rate,
+           dmc->dmc_fe_stream_id);
+}
+
+static int
+dvb_mux_conf_str_isdb_t ( dvb_mux_conf_t *dmc, char *buf, size_t bufsize )
+{
+  return
+  snprintf(buf, bufsize,
+           "%s freq %d layers %d",
+           dvb_delsys2str(dmc->dmc_fe_delsys),
+           dmc->dmc_fe_freq,
+           dmc->u.dmc_fe_isdbt.enabled_layers);
+}
+
 int
 dvb_mux_conf_str ( dvb_mux_conf_t *dmc, char *buf, size_t bufsize )
 {
@@ -1091,6 +1118,10 @@ dvb_mux_conf_str ( dvb_mux_conf_t *dmc, char *buf, size_t bufsize )
     return dvb_mux_conf_str_dvbs(dmc, buf, bufsize);
   case DVB_TYPE_ATSC_T:
     return dvb_mux_conf_str_atsc_t(dmc, buf, bufsize);
+  case DVB_TYPE_ISDB_S:
+    return dvb_mux_conf_str_isdb_s(dmc, buf, bufsize);
+  case DVB_TYPE_ISDB_T:
+    return dvb_mux_conf_str_isdb_t(dmc, buf, bufsize);
   default:
     return
       snprintf(buf, bufsize, "UNKNOWN MUX CONFIG");

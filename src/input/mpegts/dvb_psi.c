@@ -199,6 +199,7 @@ dvb_desc_sat_del
   int frequency, symrate;
   dvb_mux_conf_t dmc;
   char buf[128];
+  int is_isdbs;
 
   /* Not enough data */
   if(len < 11) return NULL;
@@ -219,7 +220,17 @@ dvb_desc_sat_del
     return NULL;
   }
 
+  is_isdbs = ((ptr[6] & 0x1f) == 0x08);
+#if ENABLE_ISDB
+  if (!is_isdbs) {
+    tvhlog(LOG_WARNING, mt->mt_name, "non ISDB-S signal?");
+    return NULL;
+  }
+  dvb_mux_conf_init(&dmc, DVB_SYS_ISDBS);
+  dmc.dmc_fe_stream_id = tsid;
+#else
   dvb_mux_conf_init(&dmc, (ptr[6] & 0x4) ? DVB_SYS_DVBS2 : DVB_SYS_DVBS);
+#endif
 
   dmc.dmc_fe_freq                = frequency;
   dmc.u.dmc_fe_qpsk.orbital_pos  = bcdtoint(ptr[4]) * 100 + bcdtoint(ptr[5]);
@@ -228,7 +239,7 @@ dvb_desc_sat_del
   dmc.u.dmc_fe_qpsk.polarisation = (ptr[6] >> 5) & 0x03;
 
   dmc.u.dmc_fe_qpsk.symbol_rate  = symrate * 100;
-  dmc.u.dmc_fe_qpsk.fec_inner    = fec_tab[ptr[10] & 0x0f];
+  dmc.u.dmc_fe_qpsk.fec_inner    = is_isdbs ? DVB_FEC_AUTO : fec_tab[ptr[10] & 0x0f];
   
   static int mtab[4] = {
     DVB_MOD_NONE, DVB_MOD_QPSK, DVB_MOD_PSK_8, DVB_MOD_QAM_16
@@ -236,13 +247,13 @@ dvb_desc_sat_del
   static int rtab[4] = {
     DVB_ROLLOFF_35, DVB_ROLLOFF_25, DVB_ROLLOFF_20, DVB_ROLLOFF_AUTO
   };
-  dmc.dmc_fe_modulation = mtab[ptr[6] & 0x3];
-  if (dmc.dmc_fe_modulation != DVB_MOD_NONE &&
+  dmc.dmc_fe_modulation = is_isdbs ? DVB_MOD_PSK_8 : mtab[ptr[6] & 0x3];
+  if (!is_isdbs && dmc.dmc_fe_modulation != DVB_MOD_NONE &&
       dmc.dmc_fe_modulation != DVB_MOD_QPSK)
     /* standard DVB-S allows only QPSK */
     /* on 13.0E, there are (ptr[6] & 4) == 0 muxes with 8PSK and DVB-S2 */
     dmc.dmc_fe_delsys = DVB_SYS_DVBS2;
-  dmc.dmc_fe_rolloff    = rtab[(ptr[6] >> 3) & 0x3];
+  dmc.dmc_fe_rolloff    = is_isdbs ? DVB_ROLLOFF_35 : rtab[(ptr[6] >> 3) & 0x3];
   if (dmc.dmc_fe_delsys == DVB_SYS_DVBS &&
       dmc.dmc_fe_rolloff != DVB_ROLLOFF_35) {
     tvhwarn(mt->mt_name, "dvb-s rolloff error");
@@ -1149,6 +1160,11 @@ dvb_nit_mux
         dtag != DVB_DESC_SAT_DEL &&
         dtag != DVB_DESC_CABLE_DEL &&
         dtag != DVB_DESC_TERR_DEL)
+      continue;
+#endif
+
+#if ENABLE_ISDB
+    if (!discovery && dtag != DVB_DESC_SERVICE_LIST)
       continue;
 #endif
 

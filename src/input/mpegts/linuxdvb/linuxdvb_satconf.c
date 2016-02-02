@@ -842,7 +842,8 @@ linuxdvb_satconf_ele_tune ( linuxdvb_satconf_ele_t *lse )
   if (linuxdvb_diseqc_set_volt(ls, vol))
     return -1;
 
-  /* Set the tone (en50494 don't use tone) */
+  /* Set the tone (en50494/ISDB-S don't use tone) */
+#if !ENABLE_ISDB
   if (!lse->lse_en50494) {
     if (ls->ls_last_tone_off != band + 1) {
       ls->ls_last_tone_off = 0;
@@ -855,6 +856,7 @@ linuxdvb_satconf_ele_tune ( linuxdvb_satconf_ele_t *lse )
       usleep(20000); // Allow LNB to settle before tuning
     }
   }
+#endif
 
   /* Frontend */
   /* use en50494 tuning frequency, if needed (not channel frequency) */
@@ -1355,7 +1357,11 @@ const idclass_t linuxdvb_satconf_ele_class =
       .set      = linuxdvb_satconf_ele_class_lnbtype_set,
       .get      = linuxdvb_satconf_ele_class_lnbtype_get,
       .list     = linuxdvb_lnb_list,
+#if ENABLE_ISDB
+      .def.s    = "Ku 10678",
+#else
       .def.s    = "Universal",
+#endif
     },
     {
       .type     = PT_STR,

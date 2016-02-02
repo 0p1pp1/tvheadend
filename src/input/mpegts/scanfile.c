@@ -40,6 +40,7 @@ scanfile_region_list_t scanfile_regions_DVBS;
 scanfile_region_list_t scanfile_regions_ATSC_T;
 scanfile_region_list_t scanfile_regions_ATSC_C;
 scanfile_region_list_t scanfile_regions_ISDB_T;
+scanfile_region_list_t scanfile_regions_ISDB_S;
 
 /* **************************************************************************
  * Country codes
@@ -76,6 +77,7 @@ static const struct {
   {"ir", "Iran"},
   {"is", "Iceland"},
   {"it", "Italy"},
+  {"jp", "Japan"},
   {"lt", "Lithuania"},
   {"lu", "Luxembourg"},
   {"lv", "Latvia"},
@@ -287,6 +289,7 @@ scanfile_region_create
   else if (!strcmp(type, "atsc-t")) list = &scanfile_regions_ATSC_T;
   else if (!strcmp(type, "atsc-c")) list = &scanfile_regions_ATSC_C;
   else if (!strcmp(type, "isdb-t")) list = &scanfile_regions_ISDB_T;
+  else if (!strcmp(type, "isdb-s")) list = &scanfile_regions_ISDB_S;
   if (!list) return NULL;
 
   LIST_FOREACH(reg, list, sfr_link) {
@@ -320,7 +323,7 @@ scanfile_create_network
   /* Region */
   strncpy(buf, name, sizeof(buf));
   buf[sizeof(buf)-1] = '\0';
-  if (!strcmp(type, "dvb-s")) {
+  if (!strcmp(type, "dvb-s") || !strcmp(type, "isdb-s")) {
     reg = scanfile_region_create(type, "geo", "Geo-synchronous Orbit");
   } else {
     str = buf;
@@ -347,7 +350,8 @@ scanfile_create_network
   }
   *str = '\0';
   opos = INT_MAX;
-  if (!strcmp(type, "dvb-s") && scanfile_network_dvbs_pos(buf, &opos)) {
+  if ((!strcmp(type, "dvb-s") || !strcmp(type, "isdb-s"))
+      && scanfile_network_dvbs_pos(buf, &opos)) {
     snprintf(buf3, sizeof(buf3), "%c%3i.%i%c:%s", opos < 0 ? '<' : '>',
                                                    abs(opos) / 10, abs(opos) % 10,
                                                    opos < 0 ? 'W' :'E', buf);
@@ -620,7 +624,9 @@ scanfile_load_dvbv5
       if ((mux->u.dmc_fe_ofdm.bandwidth = dvb_str2bw(x)) == -1)
         mux_fail(r, "wrong bandwidth '%s'", x);
     }
-    
+
+    mux->u.dmc_fe_isdbt.enabled_layers = htsmsg_get_u32_or_default(l, "ISDBT_LAYER_ENABLED", ISDBT_LAYER_ALL);
+
     if ((x = htsmsg_get_str(l, "INVERSION")))
       if ((mux->dmc_fe_inversion = dvb_str2inver(x)) == -1)
         mux_fail(r, "wrong inversion '%s'", x);
@@ -660,6 +666,12 @@ scanfile_load_dvbv5
     mux->u.dmc_fe_isdbt.layers[0].time_interleaving = htsmsg_get_u32_or_default(l, "ISDBT_LAYERA_TIME_INTERLEAVING", 0);
     mux->u.dmc_fe_isdbt.layers[1].time_interleaving = htsmsg_get_u32_or_default(l, "ISDBT_LAYERB_TIME_INTERLEAVING", 0);
     mux->u.dmc_fe_isdbt.layers[2].time_interleaving = htsmsg_get_u32_or_default(l, "ISDBT_LAYERC_TIME_INTERLEAVING", 0);
+
+  } else if (mux->dmc_fe_delsys == DVB_SYS_ISDBS) {
+
+    mux->u.dmc_fe_qpsk.polarisation = DVB_POLARISATION_CIRCULAR_RIGHT;
+    if (htsmsg_get_s32(l, "STREAM_ID", &mux->dmc_fe_stream_id))
+      mux_fail0(r, "isdb-s: undefined TS id");
 
   } else {
 
@@ -814,6 +826,7 @@ scanfile_init ( void )
   r += scanfile_stats("ATSC-T", &scanfile_regions_ATSC_T);
   r += scanfile_stats("ATSC-C", &scanfile_regions_ATSC_C);
   r += scanfile_stats("ISDB-T", &scanfile_regions_ISDB_T);
+  r += scanfile_stats("ISDB-S", &scanfile_regions_ISDB_S);
   if (!r) {
     tvhwarn("scanfile", "no predefined muxes found, check path '%s%s'",
             path[0] == '/' ? path : TVHEADEND_DATADIR "/",
@@ -859,6 +872,7 @@ scanfile_done ( void )
   scanfile_done_region(&scanfile_regions_ATSC_T);
   scanfile_done_region(&scanfile_regions_ATSC_C);
   scanfile_done_region(&scanfile_regions_ISDB_T);
+  scanfile_done_region(&scanfile_regions_ISDB_S);
 }
 
 /*
@@ -888,6 +902,8 @@ scanfile_find ( const char *id )
     l = &scanfile_regions_ATSC_C;
   else if (!strcasecmp(tok, "isdb-t"))
     l = &scanfile_regions_ISDB_T;
+  else if (!strcasecmp(tok, "isdb-s"))
+    l = &scanfile_regions_ISDB_S;
   else
     goto fail;
 

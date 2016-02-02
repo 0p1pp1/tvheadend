@@ -457,6 +457,7 @@ dvb_network_check_symbol_rate( dvb_mux_t *lm, dvb_mux_conf_t *dmc, int deltar )
 {
   switch (dmc->dmc_fe_type) {
   case DVB_TYPE_T:
+  case DVB_TYPE_ISDB_T:
     return dvb_network_check_bandwidth(lm->lm_tuning.u.dmc_fe_ofdm.bandwidth,
                                        dmc->u.dmc_fe_ofdm.bandwidth);
   case DVB_TYPE_C:
@@ -544,6 +545,7 @@ dvb_network_find_mux
     /* use the mux with closest parameters */
     /* unfortunately, the onid and tsid might DIFFER */
     /* in the NIT table information and real mux feed */
+    if (dmc->dmc_fe_type != DVB_TYPE_ISDB_S)
     mm = mm_alt;
   }
   return (dvb_mux_t *)mm;
@@ -604,6 +606,7 @@ dvb_network_mux_class
 #define CBIT_PLS_MODE           (1<<15)
 #define CBIT_PLS_CODE           (1<<16)
 #define CBIT_FEC_INNER          (1<<17)
+#define CBIT_LAYERS             (1<<18)
 
 static mpegts_mux_t *
 dvb_network_create_mux
@@ -642,6 +645,8 @@ dvb_network_create_mux
     save |= cls == &dvb_mux_dvbs_class && dmc->dmc_fe_type == DVB_TYPE_S;
     save |= cls == &dvb_mux_atsc_t_class && dmc->dmc_fe_type == DVB_TYPE_ATSC_T;
     save |= cls == &dvb_mux_atsc_c_class && dmc->dmc_fe_type == DVB_TYPE_ATSC_C;
+    save |= cls == &dvb_mux_isdb_t_class && dmc->dmc_fe_type == DVB_TYPE_ISDB_T;
+    save |= cls == &dvb_mux_isdb_s_class && dmc->dmc_fe_type == DVB_TYPE_ISDB_S;
     if (save && dmc->dmc_fe_type == DVB_TYPE_S) {
       satpos = dvb_network_get_orbital_pos(mn);
       /* do not allow to mix satellite positions */
@@ -720,6 +725,14 @@ dvb_network_create_mux
     case DVB_TYPE_C:
       save |= COMPARE(u.dmc_fe_qam.symbol_rate, CBIT_RATE);
       save |= COMPAREN(u.dmc_fe_qam.fec_inner, CBIT_FEC_INNER);
+      break;
+    case DVB_TYPE_ISDB_T:
+      save |= COMPAREN(u.dmc_fe_isdbt.bandwidth, CBIT_BANDWIDTH);
+      save |= COMPAREN(u.dmc_fe_isdbt.enabled_layers, CBIT_LAYERS);
+      break;
+    case DVB_TYPE_ISDB_S:
+      save |= COMPARE(dmc_fe_stream_id, CBIT_STREAM_ID);
+      save |= COMPARE(u.dmc_fe_qpsk.polarisation, CBIT_POLARISATION);
       break;
     default:
       abort();

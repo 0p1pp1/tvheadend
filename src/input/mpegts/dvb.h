@@ -571,9 +571,15 @@ typedef struct dvb_ofdm_config {
   dvb_fe_hierarchy_t      hierarchy_information;
 } dvb_ofdm_config_t;
 
+#define ISDBT_LAYER_A   (1 << 0)
+#define ISDBT_LAYER_B   (1 << 1)
+#define ISDBT_LAYER_C   (1 << 2)
+#define ISDBT_LAYER_ALL (ISDBT_LAYER_A | ISDBT_LAYER_B | ISDBT_LAYER_C)
+
 typedef struct dvb_isdbt_config {
   dvb_fe_bandwidth_t      bandwidth;
   dvb_fe_guard_interval_t guard_interval;
+  uint32_t                enabled_layers;
   struct {
     dvb_fe_code_rate_t    fec;
     dvb_fe_modulation_t   modulation;

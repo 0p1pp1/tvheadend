@@ -28,7 +28,11 @@ SKEL_DECLARE(mpegts_psi_table_state_skel, struct mpegts_psi_table_state);
  * *************************************************************************/
 
 static const int dvb_servicetype_map[][2] = {
+#if ENABLE_ISDB
+  { 0x01, ST_HDTV  }, /* ISDB HDTV (MPEG2) */
+#else
   { 0x01, ST_SDTV  }, /* SDTV (MPEG2) */
+#endif
   { 0x02, ST_RADIO },
   { 0x11, ST_HDTV  }, /* HDTV (MPEG2) */
   { 0x16, ST_SDTV  }, /* Advanced codec SDTV */
@@ -37,9 +41,17 @@ static const int dvb_servicetype_map[][2] = {
   { 0x91, ST_HDTV  }, /* Bell TV HDTV */
   { 0x96, ST_SDTV  }, /* Bell TV SDTV */
   { 0xA0, ST_HDTV  }, /* Bell TV tiered HDTV */
+#if ENABLE_ISDB
+  { 0xA1, ST_HDTV  }, /* ISDB extra service HDTV */
+  { 0xA2, ST_RADIO }, /* ISDB extra service Radio */
+#endif
+#if !ENABLE_ISDB
   { 0xA4, ST_HDTV  }, /* DN HDTV */
+#endif
   { 0xA6, ST_HDTV  }, /* Bell TV tiered HDTV */
+#if !ENABLE_ISDB
   { 0xA8, ST_SDTV  }, /* DN advanced SDTV */
+#endif
   { 0xD3, ST_SDTV  }, /* SKY TV SDTV */
 };
 

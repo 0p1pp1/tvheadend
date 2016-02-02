@@ -57,7 +57,6 @@ typedef struct eit_event
 #if ENABLE_ISDB
   int               gdesc_len;
   const uint8_t    *group_descriptor;
-#endif
 
   int               epnum;
   int               epcount;
@@ -872,7 +871,6 @@ static int _eit_desc_event_group
       save |= epg_broadcast_set_serieslink(dest, src->serieslink, changes);
       save |= epg_broadcast_set_episode(dest, src->episode, changes);
       save |= epg_broadcast_set_relay_dest(dest, src->relay_to_id, changes);
-      _epg_object_set_grabber(dest, src->grabber);
     }
     break;
 
@@ -903,11 +901,12 @@ static int _eit_desc_event_group
       start = bc->stop;
       stop = start + ISDB_EPG_UNDEF_DUR;
       /* check if another program (!=eid) already exists at the start time */
-      if (epg_broadcast_find_by_time(ch, mod, start, stop, eid, 0, &save, NULL))
+      if (epg_broadcast_find_by_eid(ch, eid))
         return 0;
 
-      peer_bc  = epg_broadcast_find_by_time(ch, mod, start, stop, eid, 1, &save, NULL);
+      peer_bc  = epg_broadcast_find_by_time(ch, mod, start, stop, 1, &save, changes);
       if (!peer_bc) return 0;
+      save |= epg_broadcast_set_dvb_eid(peer_bc, eid, changes);
     }
 
     save |= epg_broadcast_set_relay_dest(bc, ((epg_object_t *)peer_bc)->id, changes);
@@ -1132,7 +1131,15 @@ static int _eit_process_event_one
    * Broadcast
    */
 
-  *save |= epg_broadcast_set_dvb_eid(ebc, eid, &changes2);
+  uint16_t prev_eid = ebc->dvb_eid;
+  if (epg_broadcast_set_dvb_eid(ebc, eid, &changes2)) {
+    tvhinfo("eit", "event %u (ev-id:%u, %s) on %s @ %"PRItime_t
+            " was replaced by another(ev-id:%u)", ebc->id, prev_eid,
+            epg_broadcast_get_title(ebc, NULL), channel_get_name(ch),
+            ebc->start, eid);
+    dvr_event_replaced(ebc, (epg_broadcast_t *) 1 /* dummy */);
+    *save |= 1;
+  }
 
   /* Summary/Description */
   if (ev.summary)
@@ -1142,6 +1149,18 @@ static int _eit_process_event_one
 
   /* Broadcast Metadata */
   *save |= epg_broadcast_set_is_hd(ebc, ev.hd, &changes2);
+#if ENABLE_ISDB
+  /* video resolution can change dynamically in ISDB-T */
+  if (tableid <= 0x4f && sect == 0) {
+    int new_stype;
+
+    new_stype = ev.hd ? ST_HDTV : ST_SDTV;
+    if (svc->s_servicetype != new_stype) {
+      svc->s_servicetype = new_stype;
+      idnode_changed(&svc->s_id);
+    }
+  }
+#endif
   *save |= epg_broadcast_set_is_widescreen(ebc, ev.ws, &changes2);
   *save |= epg_broadcast_set_is_audio_desc(ebc, ev.ad, &changes2);
   *save |= epg_broadcast_set_is_subtitled(ebc, ev.st, &changes2);

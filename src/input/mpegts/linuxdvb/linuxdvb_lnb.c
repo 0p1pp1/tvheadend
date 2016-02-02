@@ -236,6 +236,20 @@ struct linuxdvb_lnb_conf linuxdvb_lnb_all[] = {
   },
   {
     { {
+      .ld_type    = "Ku 10678",
+      .ld_tune    = linuxdvb_lnb_standard_tune,
+      },
+      .lnb_freq   = linuxdvb_lnb_standard_freq,
+      .lnb_match  = linuxdvb_lnb_standard_match,
+      .lnb_band   = linuxdvb_lnb_standard_band,
+      .lnb_pol    = linuxdvb_lnb_inverted_pol,
+    },
+    .lnb_low    = 10678000,
+    .lnb_high   = 0,
+    .lnb_switch = 0,
+  },
+  {
+    { {
       .ld_type    = "Ku 10750",
       .ld_tune    = linuxdvb_lnb_standard_tune,
       },

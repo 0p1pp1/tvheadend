@@ -1640,19 +1640,11 @@ static epg_broadcast_t *_epg_channel_add_broadcast
         return ret;
 
       /* No change */
-      if (ret->stop == (*bcast)->stop && ret->dvb_eid == (*bcast)->dvb_eid) {
+      if (ret->stop == (*bcast)->stop) {
         return ret;
 
-      /* Extend in time or Change of evid */
+      /* Extend in time */
       } else {
-        if ( ret->dvb_eid != (*bcast)->dvb_eid ) {
-          tvhinfo("epg", "event %u (ev-id:%u, %s) on %s @ %"PRItime_t
-                  " was replaced by another(ev-id:%u)", ret->id, ret->dvb_eid,
-                  epg_broadcast_get_title(ret, NULL), channel_get_name(ch),
-                  ret->start, (*bcast)->dvb_eid);
-          epg_broadcast_set_dvb_eid(ret, (*bcast)->dvb_eid, changed);
-          dvr_event_replaced(ret, (epg_broadcast_t *) 1 /* dummy */);
-        }
         ret->stop = (*bcast)->stop;
         _epg_object_set_updated(ret);
         tvhtrace("epg", "updated event %u (%s) on %s @ %"PRItime_t " to %"PRItime_t,
@@ -1815,7 +1807,7 @@ int epg_broadcast_change_finish
     save |= epg_broadcast_set_summary(broadcast, NULL, NULL);
   if (!(changes & EPG_CHANGED_DESCRIPTION))
     save |= epg_broadcast_set_description(broadcast, NULL, NULL);
-  if (!(chanages & EPG_CHANGED_RELAY_DEST))
+  if (!(changes & EPG_CHANGED_RELAY_DEST))
     save |= epg_broadcast_set_relay_dest(broadcast, 0, NULL);
   return save;
 }
