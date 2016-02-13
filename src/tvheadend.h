@@ -253,7 +253,8 @@ typedef enum {
   SCT_VORBIS,
   SCT_HEVC,
   SCT_VP9,
-  SCT_LAST = SCT_VP9
+  SCT_ISDBSUB,
+  SCT_LAST = SCT_ISDBSUB
 } streaming_component_type_t;
 
 #define SCT_MASK(t) (1 << (t))
@@ -267,7 +268,8 @@ typedef enum {
 
 #define SCT_ISAV(t) (SCT_ISVIDEO(t) || SCT_ISAUDIO(t))
 
-#define SCT_ISSUBTITLE(t) ((t) == SCT_TEXTSUB || (t) == SCT_DVBSUB)
+#define SCT_ISSUBTITLE(t) ((t) == SCT_TEXTSUB || (t) == SCT_DVBSUB || \
+			(t) == SCT_ISDBSUB)
 
 /*
  * Scales for signal status values

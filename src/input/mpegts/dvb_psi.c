@@ -2264,11 +2264,16 @@ psi_parse_pmt
       break;
 
     case 0x06:
+#if ENABLE_ISDB
+      hts_stream_type = SCT_ISDBSUB;
+      break;
+#else
       /* 0x06 is Chinese Cable TV AC-3 audio track */
       /* but mark it so only when no more descriptors exist */
       if (dllen > 1 || !mux || mux->mm_pmt_ac3 != MM_AC3_PMT_06)
         break;
       /* fall through to SCT_AC3 */
+#endif
     case 0x81:
       hts_stream_type = SCT_AC3;
       break;

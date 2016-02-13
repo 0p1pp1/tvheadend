@@ -526,6 +526,7 @@ static struct strtab streamtypetab[] = {
   { "VORBIS",     SCT_VORBIS },
   { "HEVC",       SCT_HEVC },
   { "VP9",        SCT_VP9 },
+  { "ISDBSUB",    SCT_ISDBSUB },
 };
 
 /**

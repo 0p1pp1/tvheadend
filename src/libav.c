@@ -109,6 +109,11 @@ streaming_component_type2codec_id(streaming_component_type_t type)
  case SCT_TELETEXT:
     codec_id = AV_CODEC_ID_DVB_TELETEXT;
     break;
+#if 0
+  case SCT_ISDBSUB:
+    codec_id = AV_CODEC_ID_ISDB_SUBTITLE;
+    break;
+#endif
   default:
     codec_id = AV_CODEC_ID_NONE;
     break;
@@ -166,6 +171,11 @@ codec_id2streaming_component_type(enum AVCodecID id)
   case AV_CODEC_ID_DVB_TELETEXT:
     type = SCT_TELETEXT;
     break;
+#if 0
+  case AV_CODEC_ID_ISDB_SUBTITLE:
+    type = SCT_ISDBSUB;
+    break;
+#endif
   case AV_CODEC_ID_NONE:
     type = SCT_NONE;
     break;

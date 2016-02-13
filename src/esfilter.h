@@ -56,7 +56,7 @@ extern const idclass_t esfilter_class_other;
   SCT_MASK(SCT_TELETEXT)
 
 #define ESF_MASK_SUBTIT \
-  (SCT_MASK(SCT_DVBSUB) | SCT_MASK(SCT_TEXTSUB))
+  (SCT_MASK(SCT_DVBSUB) | SCT_MASK(SCT_TEXTSUB) | SCT_MASK(SCT_ISDBSUB))
 
 #define ESF_MASK_CA \
   SCT_MASK(SCT_CA)
