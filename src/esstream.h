@@ -64,7 +64,8 @@ enum streaming_component_type {
   SCT_THEORA,
   SCT_OPUS,
   SCT_FLAC,
-  SCT_LAST = SCT_FLAC
+  SCT_ISDBSUB,
+  SCT_LAST = SCT_ISDBSUB
 };
 
 #define SCT_MASK(t) (1 << (t))
@@ -80,7 +81,8 @@ enum streaming_component_type {
 
 #define SCT_ISAV(t) (SCT_ISVIDEO(t) || SCT_ISAUDIO(t))
 
-#define SCT_ISSUBTITLE(t) ((t) == SCT_TEXTSUB || (t) == SCT_DVBSUB)
+#define SCT_ISSUBTITLE(t) ((t) == SCT_TEXTSUB || (t) == SCT_DVBSUB || \
+      (t) == SCT_ISDBSUB)
 
 /**
  * Stream info, one media component for a service.
