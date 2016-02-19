@@ -266,7 +266,7 @@ parse_aac(service_t *t, elementary_stream_t *st, const uint8_t *data,
     if(len < 9)
       return;
 
-    if((data[0] != 0 && data[1] != 0 && data[2] != 1) ||
+    if(!(data[0] == 0 && data[1] == 0 && data[2] == 1) ||
        (data[3] != 0xbd && (data[3] & ~0x1f) != 0xc0)) { /* startcode */
       sbuf_reset(&st->es_buf, 4000);
       return;
@@ -291,12 +291,20 @@ parse_aac(service_t *t, elementary_stream_t *st, const uint8_t *data,
 
   p = 0;
   latm = -1;
+#if ENABLE_ISDB
+  latm = 0;
+#endif
 
   while((l = st->es_buf.sb_ptr - p) > 3) {
     const uint8_t *d = st->es_buf.sb_data + p;
+#if 0
     /* Startcode check */
     if(d[0] == 0 && d[1] == 0 && d[2] == 1) {
       p += 4;
+#else
+    if (0) {
+      /* do nothing */
+#endif
     /* LATM */
     } else if(latm != 0 && d[0] == 0x56 && (d[1] & 0xe0) == 0xe0) {
       muxlen = (d[1] & 0x1f) << 8 | d[2];
@@ -607,6 +615,8 @@ static void parse_mp4a_data(service_t *t, elementary_stream_t *st,
 
           int channels = ((p[2] & 0x01) << 2) | ((p[3] & 0xc0) >> 6);
 
+          if (channels == 0 && st->es_is_dmono)
+            channels = 2;
           makeapkt(t, st, p, fsize, dts, duration, channels, sri,
                    st->es_buf_a.sb_err);
           st->es_buf_a.sb_err = 0;

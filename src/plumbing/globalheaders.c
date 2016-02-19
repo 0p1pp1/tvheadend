@@ -85,7 +85,7 @@ apply_header(streaming_start_component_t *ssc, th_pkt_t *pkt)
     ssc->ssc_frameduration = pkt->pkt_duration;
 
   if(SCT_ISAUDIO(ssc->ssc_type) && !ssc->ssc_channels && !ssc->ssc_sri) {
-    ssc->ssc_channels = (ssc->ssc_is_dmono) ? 2 : pkt->pkt_channels;
+    ssc->ssc_channels = pkt->pkt_channels;
     ssc->ssc_sri      = pkt->pkt_sri;
     ssc->ssc_ext_sri  = pkt->pkt_ext_sri;
   }
@@ -110,10 +110,10 @@ apply_header(streaming_start_component_t *ssc, th_pkt_t *pkt)
     ssc->ssc_gh = pktbuf_alloc(NULL, pkt->pkt_ext_sri ? 5 : 2);
     uint8_t *d = pktbuf_ptr(ssc->ssc_gh);
 
-    const int profile = 2; /* AAC LC */
 #if ENABLE_ISDB
-    if (ssc->ssc_is_dmono)
-      pkt->pkt_channels = 2;
+    const int profile = 1; /* AAC LC */
+#else
+    const int profile = 2; /* AAC LC */
 #endif
     d[0] = (profile << 3) | ((pkt->pkt_sri & 0xe) >> 1);
     d[1] = ((pkt->pkt_sri & 0x1) << 7) | (pkt->pkt_channels << 3);

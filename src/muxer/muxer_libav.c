@@ -482,7 +482,7 @@ lav_muxer_write_pkt(muxer_t *m, streaming_message_type_t smt, void *data)
       } else {
         tofree = packet.data;
       }
-    } else if (codec_id == AV_CODEC_ID_AAC) {
+    } else if (codec_id == AV_CODEC_ID_AAC && lm->m_config.m_type != MC_MPEGTS) {
       /* remove ADTS header */
       packet.data = pktbuf_ptr(pkt->pkt_payload) + 7;
       packet.size = pktbuf_len(pkt->pkt_payload) - 7;

@@ -1020,12 +1020,20 @@ mk_write_frame_i(mk_muxer_t *mk, mk_track_t *t, th_pkt_t *pkt)
   }
 
   if(t->type == SCT_AAC || t->type == SCT_MP4A) {
+    if (data[0] == 0xff) {
+    if (!(data[1] & 0x1)) {
+      if (len < 9)
+        return;
+      len -= 2;
+      data += 2;
+    } else
     // Skip ADTS header
     if(len < 7)
       return;
 
     len -= 7;
     data += 7;
+    }
   }
 
   ebml_append_id(mk->cluster, 0xa3 ); // SimpleBlock
