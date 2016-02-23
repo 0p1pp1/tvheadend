@@ -22,5 +22,9 @@ elif [ ! -d "${DIR}" ]; then
   git clone -b $BRANCH $URL "${DIR}" > /dev/null 2>&1 || exit 1
 fi
 
+mkdir -p "${DIR}/isdb-s"
+cp $(dirname "$0")/../data/isdb-mux/BSAT-3a-110.0E "${DIR}/isdb-s/"
+cp $(dirname "$0")/../data/isdb-mux/jp-* "${DIR}/isdb-t/"
+
 # Note: will not update existing set (if not .git)
 exit 0
