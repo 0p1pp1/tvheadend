@@ -652,6 +652,8 @@ fi
 if enabled_or_auto libsystemd_daemon; then
   if check_pkg libsystemd-daemon; then
     enable libsystemd_daemon
+  elif check_pkg libsystemd --atleast-version 209 ; then
+    enable libsystemd_daemon
   elif enabled libsystemd_daemon; then
     die "libsystemd-daemon development support not found (use --disable-systemd_daemon)"
   fi
