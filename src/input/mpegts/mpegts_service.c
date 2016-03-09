@@ -777,7 +777,7 @@ mpegts_service_find
   mpegts_service_t *s;
 
   /* Validate */
-  lock_assert(&global_lock);
+//  lock_assert(&global_lock);
 
   /* Find existing service */
   LIST_FOREACH(s, &mm->mm_services, s_dvb_mux_link) {
