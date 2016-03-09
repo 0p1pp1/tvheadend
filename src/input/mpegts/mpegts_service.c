@@ -922,7 +922,7 @@ mpegts_service_find
   mpegts_service_t *s;
 
   /* Validate */
-  lock_assert(&global_lock);
+//  lock_assert(&global_lock);
 
   if (mm->mm_sid_filter > 0 && sid != mm->mm_sid_filter)
     return NULL;
