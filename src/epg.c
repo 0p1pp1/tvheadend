@@ -1660,6 +1660,9 @@ static epg_broadcast_t *_epg_channel_add_broadcast
   /* Remove overlapping (before) */
   while ((ebc = RB_PREV(ret, sched_link)) != NULL) {
     if (ebc->stop <= ret->start) break;
+#if ENABLE_ISDB
+    if (ISDB_BC_DUR_UNDEFP(ebc)) break;
+#endif
     tvhtrace("epg", "remove overlap (b) event %u (%s) on %s @ %"PRItime_t " to %"PRItime_t,
              ebc->id, epg_broadcast_get_title(ebc, NULL),
              channel_get_name(ch), ebc->start, ebc->stop);
@@ -1934,6 +1937,11 @@ int epg_broadcast_set_relay_dest
               ", but auto-created DVR entry for the relayed event will remain.",
               ebc->id, epg_broadcast_get_title(ebc, NULL),
               channel_get_name(ebc->channel), ebc->stop);
+
+    tvhtrace("epg", "event-relay from (eid:%5d) on %s @%"PRItime_t
+             " is relayed to broadcast:%d", ebc->dvb_eid,
+             ebc->channel ? channel_get_name(ebc->channel) : "(null)",
+             ebc->start, dest_id);
 
     _epg_object_set_updated(ebc);
     save = 1;
