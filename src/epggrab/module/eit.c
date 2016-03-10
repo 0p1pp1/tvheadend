@@ -1216,7 +1216,10 @@ static int _eit_process_event_one
     if (ev.extra)
       *save |= epg_episode_set_extra(ee, extra, &changes4);
 #endif
-    *save |= epg_episode_change_finish(ee, changes4, 0);
+    /* EITsched_ext contains only extended event desc.
+     * so just forcibly "merge" here.
+     */
+    *save |= epg_episode_change_finish(ee, changes4, 1);
   }
 
 #if ENABLE_ISDB
@@ -1228,7 +1231,6 @@ static int _eit_process_event_one
 #endif
 
   /* EIT may describe just a part of an event,
-   * like EITsched_ext which contains only extended event desc.
    * so just forcibly "merge" here.
    */
   *save |= epg_broadcast_change_finish(ebc, changes2, 1);
