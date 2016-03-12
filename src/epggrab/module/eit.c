@@ -442,10 +442,10 @@ static int _eit_desc_ext_event
 
 #if ENABLE_ISDB
 append_to_desc:
+    is_first_item = 0;
     if (*ikey) {
       if (!ev->desc) ev->desc = lang_str_create();
-      if (!is_first_item) lang_str_append(ev->desc, "\n", lang);
-      is_first_item = 0;
+      if (!lang_str_empty(ev->desc)) lang_str_append(ev->desc, "\n\n", lang);
       lang_str_append(ev->desc, ikey, lang);
       lang_str_append(ev->desc, ":\n", lang);
     }
