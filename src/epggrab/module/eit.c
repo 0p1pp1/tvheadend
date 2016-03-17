@@ -905,7 +905,7 @@ static int _eit_desc_event_group
       start = bc->stop;
       stop = start + ISDB_EPG_UNDEF_DUR;
       /* check if another program (!=eid) already exists at the start time */
-      if (epg_broadcast_find_by_eid(ch, eid))
+      if (epg_broadcast_find_by_time(ch, mod, start, stop, 0, NULL, NULL))
         return 0;
 
       peer_bc  = epg_broadcast_find_by_time(ch, mod, start, stop, 1, &save, changes);
