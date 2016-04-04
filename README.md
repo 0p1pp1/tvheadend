@@ -25,6 +25,9 @@ libyakisobaは用意/自作する。
 実行
 ---------
 
+EPG等で使用される文字コードを変換するため、事前に[iconvの変換モジュール]
+(https://github.com/0p1pp1/gconv-module-aribb24.git)をインストールしておくことが必要。
+
         $ tvheadend --nosatip --nobat
 
 `make install`をしていないなら、`./build.linux/tvheadend --nosatip --nobat`
