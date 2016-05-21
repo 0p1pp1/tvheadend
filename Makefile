@@ -34,6 +34,7 @@ CFLAGS  += -Wunused-result
 endif
 CFLAGS  += -Wall -Werror -Wwrite-strings -Wno-deprecated-declarations
 CFLAGS  += -Wmissing-prototypes
+CFLAGS  += -Wno-misleading-indentation
 CFLAGS  += -fms-extensions -funsigned-char -fno-strict-aliasing
 CFLAGS  += -D_FILE_OFFSET_BITS=64
 CFLAGS  += -I${BUILDDIR} -I${ROOTDIR}/src -I${ROOTDIR}
