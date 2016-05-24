@@ -1083,7 +1083,7 @@ dvb_mux_conf_str_isdb_s ( dvb_mux_conf_t *dmc, char *buf, size_t bufsize )
 
   return
   snprintf(buf, bufsize,
-           "%s freq %d %c ts_id sym %d ts_id %d",
+           "%s freq %d %c sym %d ts_id %d",
            dvb_delsys2str(dmc->dmc_fe_delsys),
            dmc->dmc_fe_freq,
            pol ? pol[0] : 'X',
