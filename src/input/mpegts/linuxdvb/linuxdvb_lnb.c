@@ -236,20 +236,6 @@ struct linuxdvb_lnb_conf linuxdvb_lnb_all[] = {
   },
   {
     { {
-      .ld_type    = "Ku 10678",
-      .ld_tune    = linuxdvb_lnb_standard_tune,
-      },
-      .lnb_freq   = linuxdvb_lnb_standard_freq,
-      .lnb_match  = linuxdvb_lnb_standard_match,
-      .lnb_band   = linuxdvb_lnb_standard_band,
-      .lnb_pol    = linuxdvb_lnb_inverted_pol,
-    },
-    .lnb_low    = 10678000,
-    .lnb_high   = 0,
-    .lnb_switch = 0,
-  },
-  {
-    { {
       .ld_type    = "Ku 10750",
       .ld_tune    = linuxdvb_lnb_standard_tune,
       },
@@ -360,6 +346,20 @@ struct linuxdvb_lnb_conf linuxdvb_lnb_all[] = {
     .lnb_high   = 10700000,
     .lnb_switch = 11800000,
   },
+  {
+    { {
+      .ld_type    = "Ku 10678 (Japan)",
+      .ld_tune    = linuxdvb_lnb_standard_tune,
+      },
+      .lnb_freq   = linuxdvb_lnb_standard_freq,
+      .lnb_match  = linuxdvb_lnb_standard_match,
+      .lnb_band   = linuxdvb_lnb_standard_band,
+      .lnb_pol    = linuxdvb_lnb_inverted_pol,
+    },
+    .lnb_low    = 10678000,
+    .lnb_high   = 0,
+    .lnb_switch = 0,
+  },
 };
 
 /* **************************************************************************
@@ -386,6 +386,11 @@ linuxdvb_lnb_create0
   for (i = 0; i < ARRAY_SIZE(linuxdvb_lnb_all); i++)
     if (!linuxdvb_lnb_all[i].ld_id.in_class)
       idnode_insert(&linuxdvb_lnb_all[i].ld_id, NULL, &linuxdvb_lnb_class, 0);
+
+  if (!name &&
+      ((linuxdvb_frontend_t *)ls->lse_parent->ls_frontend)->lfe_type
+           == DVB_TYPE_ISDB_S)
+    name = "Ku 10678 (Japan)";
 
   /* Find */
   if (name) {

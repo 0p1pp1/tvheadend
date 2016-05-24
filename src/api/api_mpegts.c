@@ -393,6 +393,8 @@ api_dvb_scanfile_list
     list = &scanfile_regions_ATSC_C;
   else if (!strcasecmp(type, "isdb-t"))
     list = &scanfile_regions_ISDB_T;
+  else if (!strcasecmp(type, "isdb-s"))
+    list = &scanfile_regions_ISDB_S;
   else
     return -EINVAL;
   
@@ -403,7 +405,7 @@ api_dvb_scanfile_list
       e = htsmsg_create_map();
       sprintf(buf, "%s/%s/%s", type, r->sfr_id, n->sfn_id);
       htsmsg_add_str(e, "key", buf);
-      if (list != &scanfile_regions_DVBS) {
+      if (list != &scanfile_regions_DVBS && list != &scanfile_regions_ISDB_S) {
         sprintf(buf, "%s: %s", r->sfr_name, n->sfn_name);
         htsmsg_add_str(e, "val", buf);
       } else {

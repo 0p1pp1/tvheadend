@@ -390,7 +390,11 @@ const idclass_t linuxdvb_frontend_isdb_s_class =
       .set      = linuxdvb_frontend_dvbs_class_satconf_set,
       .get      = linuxdvb_frontend_dvbs_class_satconf_get,
       .list     = linuxdvb_satconf_type_list,
-      .def.s    = "simple"
+      .def.s    = "isdb-s"
+    },
+    {
+      .id       = "networks",
+      .type     = PT_NONE,
     },
     {}
   }
@@ -1840,7 +1844,10 @@ linuxdvb_frontend_wizard_set( tvh_input_t *ti, htsmsg_t *conf, const char *lang 
       htsmsg_t *conf = htsmsg_create_map();
       htsmsg_t *elems = htsmsg_create_list();
       htsmsg_t *elem = htsmsg_create_map();
-      htsmsg_add_str(conf, "type", "4port");
+      if (lfe->lfe_type == DVB_TYPE_ISDB_S)
+        htsmsg_add_str(conf, "type", "isdb-s");
+      else
+        htsmsg_add_str(conf, "type", "4port");
       htsmsg_add_bool(elem, "enable", 1);
       htsmsg_add_msg(elem, "networks", nlist);
       htsmsg_add_msg(elems, NULL, elem);
