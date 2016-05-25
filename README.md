@@ -42,8 +42,9 @@ EPG等で使用される文字コードを変換するため、事前に[iconv�
 http://127.0.0.1:9981/にアクセスして設定する。
 幾つか解りにくい/気付きにくい設定項目があるので注意。
 
-- `-C`オプションをつけて起動すると初期設定のウィザードが出るのでそれに従うか、
-  (キャンセルして)手動で言語設定・ユーザ設定・ネットワーク設定・チャンネル設定等を行う。
+- `-C`オプションをつけて起動すると初期設定のウィザードが出るのでそれに従う。
+  途中でキャンセルして手動で設定も可能であるが、BS/CSについては少なくとも最初は
+  ウィザードを使用しないと以後のチューニング/チャンネルスキャンがうまく行かいかない。
 - UIのモードをExpertにしないと、BCASのデスクランブル設定を有効にできない
 - 設定中に変更した場合は、タブを移る前にsaveしないと変更が失われる。
 - 事前に地デジ・衛星のチャンネル設定ファイル(のプロトタイプ)を用意する。
@@ -57,54 +58,52 @@ http://127.0.0.1:9981/にアクセスして設定する。
 設定の参考
 ------------
 
-0. Config->General
-    - User interface levelをexpertに設定 (BCASの設定が済むまで)
+* `-C`オプションを付けてウィザードを起動し、初期設定
 
-1. Config->User でユーザ関係/アクセス許可の設定.
+0. Web Interface (:= English), EPG Language (:= Japanese) の言語を設定。
+
+1. ユーザ関係/アクセス許可の設定.
     - 許可ネットワーク127.0.0.1 (後でローカルサイト上のKodiからアクセスする予定)
-    - adminパスワード設定
-    - 一般ユーザ作成、余計な権限削除
+    - adminユーザとパスワード設定
+    - 一般ユーザ作成
 
-2. Config->DVB Inputs->TV adapters
-    - enable, Name, over-the-air EPG, initial scan, idle scanを設定
-    - [ISDB-T] Networksは、後で隣のNetworksタブで地デジ局全体の伝送ネットワークを作成してから、
-      戻ってきてそれをチェック (ドロップダウンやクリックで簡単にチェックが外れてしまうので注意)
-    - [ISDB-S] SatConfig: Universal LNB only
-    - [ISDB-S] adapterの下のLNBを設定. 
-        * ISDB-Tの場合と同様にNetworksのチェックボックスを(後で)設定
-        * Tune before DiseqC, Full DiseqC等をオフに
-        * Turn off LNB when idleはオンにしてもok
+2. チューナー毎の設定
+    - IPTV以外のチューナーにNetwork typeを設定 (ISDB-{S,T} network)
+    - Pre-defined networksを設定 (jp-Seto, BSAT-3a-110.0E) スキャンの終了を待つ
 
-3. Config->DVB Inputs->Networks
-    - +Add->Type: ISDB-T -> Network name, Pre-defined muxes: jp-Xxx,
-       Network discovery: on, Character set: ARIB-STD-B24
-    - +Add->Type: ISDB-S -> Network name, Pre-defined muxes: >110.0E:BSAT-3a,
-       Orbital position:110E, Network discovery: on, Charset: ARIB-STD-B24
-    - Config->DVB Inputs->TV adaptersに戻って各アダプタ/LNBのNetworksを設定
+3. サービス -> チャンネルの設定
+    - 日本では１つのチャンネルが複数の電波(サービス)で放送されているケースは少ないが、
+      tvheadendではサービスとチャンネルは区別されているので、1:1対応でもmappingが必要。
+    - ただしスキャンされたサービスはデータサービスや臨時サービス、予備？なども含まれているので、
+      ここではMap all servicesはチェックしないで、後程手動で選択してmapする。
 
-4. Config->DVB Inputs->Muxes にスキャンされたTSがリストアップされるのを確認
+* 手動での追加設定
 
-   statusがOKなら隣のServicesにサービス(チャンネル)がリストアップされる.
+0. adminでhttp://127.0.0.1:9981/にログインし、Configurationタブに移動
+1. General->Base->User interface level をexpertに設定 (BCASの設定が済むまで) ->Save
+2. DVB Inputs->Networks
+    - 各ネットワークを選択->Edit->Character set をARIB-STD-B24に変更 -> Save
+3. DVB Inputs->Services で必要なサービス(チャンネル)をMapする
+    - リストから(Shift/Control クリックで)複数選択して、
+      Map Selected -> Map selected services -> Map services
+    - 同名のサービスが複数リストアップされるが、基本的にサービスID最小のサービスがメイン
 
-5. Config->DVB Inputs->Services
-    - Map all 又は、必要なチャンネルを選んで Map Selected -> Map services
-    - Config -> Channel/EPG -> Channelsにリストされたらok
-6. Config -> Channel/EPG -> Channels
-    - Edit->Use EPG running state: enable
+4. Channel/EPG
+    - Channelsタブで各チャンネルを選択、Edit->Use EPG running state: enable, Number設定等
     - EPG Grabber->Periodically save EPG to disk: 3
-    - Config->Channel/EPG->EPG Grabber Modules でEIT: DVB Grabberをenable(他は不要)
+    - EPG Grabber Modules でEIT: DVB Grabber以外のモジュールをEnabledを外す->Save
 
-7. Config->Recording->Digital Video Recorder Profiles->Use EPG running state,
-    Recording system path設定
+5. Recording->Digital Video Recorder Profiles->(default profile)
+    - Use EPG running stateをチェック、Recording system path設定他
 
-8. Config->CAs
-    - "+Add" -> Type:BCAS(MULTI2) -> Enable, Client name -> +Create -> Save
+6. CAs
+    - Add -> Type:BCAS(MULTI2) -> Enable, Client name:bcas -> Create -> Save
 
 
 WebUIでの確認
 ------------
 
-- 再生: Config->Channel/EPG->Channelsから 先頭のPlayリンクを再生
+- 再生: Configuration->Channel/EPG->Channelsから 先頭のPlayリンクを再生
   (プレイリスト形式。URLから/play/を除くと直接ストリーム再生)
   Config->DVB Inputs->{Muxes, Services}->Play 
 - 録画: Electric Program Guide->Details->Record
