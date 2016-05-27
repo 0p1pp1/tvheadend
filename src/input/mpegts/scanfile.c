@@ -669,6 +669,7 @@ scanfile_load_dvbv5
 
   } else if (mux->dmc_fe_delsys == DVB_SYS_ISDBS) {
 
+    mux->dmc_fe_modulation = DVB_MOD_PSK_8;
     mux->u.dmc_fe_qpsk.polarisation = DVB_POLARISATION_CIRCULAR_RIGHT;
     if (htsmsg_get_s32(l, "STREAM_ID", &mux->dmc_fe_stream_id))
       mux_fail0(r, "isdb-s: undefined TS id");

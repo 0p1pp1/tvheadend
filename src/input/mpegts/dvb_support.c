@@ -998,7 +998,11 @@ dvb_mux_conf_init ( dvb_mux_conf_t *dmc, dvb_fe_delivery_system_t delsys )
   dmc->dmc_fe_stream_id = DVB_NO_STREAM_ID_FILTER;
   switch (dmc->dmc_fe_type) {
   case DVB_TYPE_S:
+    dmc->u.dmc_fe_qpsk.orbital_pos = INT_MAX;
+    break;
   case DVB_TYPE_ISDB_S:
+    dmc->dmc_fe_modulation = DVB_MOD_PSK_8;
+    dmc->u.dmc_fe_qpsk.polarisation = DVB_POLARISATION_CIRCULAR_RIGHT;
     dmc->u.dmc_fe_qpsk.orbital_pos = INT_MAX;
     break;
   default:
