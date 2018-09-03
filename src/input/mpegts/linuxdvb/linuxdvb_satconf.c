@@ -1245,6 +1245,16 @@ linuxdvb_satconf_create
         if (lst->enable)
           htsmsg_set_bool(e, "enabled", 1);
         lse = linuxdvb_satconf_ele_create0(htsmsg_get_str(e, "uuid"), e, ls);
+
+        if (lfe->lfe_type == DVB_TYPE_ISDB_S && lse->lse_networks->is_count == 0) {
+          htsmsg_t *m = htsmsg_create_map();
+          htsmsg_t *n;
+
+          n = idnode_set_as_htsmsg(lfe->mi_network_list((mpegts_input_t *)lfe));
+          htsmsg_add_msg(m, "networks", n);
+          idnode_load(&lse->lse_id, m);
+          htsmsg_destroy(m);
+        }
       }
     }
     
@@ -1255,8 +1265,17 @@ linuxdvb_satconf_create
   /* Create elements */
   lse = TAILQ_FIRST(&ls->ls_elements);
   for (i = 0; i < lst->ports; i++) {
-    if (!lse)
+    if (!lse) {
       lse = linuxdvb_satconf_ele_create0(NULL, NULL, ls);
+      if (lfe->lfe_type == DVB_TYPE_ISDB_S) {
+        htsmsg_t *m = htsmsg_create_map();
+
+        htsmsg_add_msg(m, "networks",
+          idnode_set_as_htsmsg(lfe->mi_network_list((mpegts_input_t *)lfe)));
+        idnode_load(&lse->lse_id, m);
+        htsmsg_destroy(m);
+      }
+    }
     if (lst->enable)
       lse->lse_enabled = 1;
     if (!lse->lse_lnb)
