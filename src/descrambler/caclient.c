@@ -40,6 +40,9 @@ const idclass_t *caclient_classes[] = {
   &caclient_ccw_aes_ecb_class,
   &caclient_ccw_aes128_ecb_class,
 #endif
+#if ENABLE_DEMULTI2
+  &caclient_bcas_class,
+#endif
   NULL
 };
 
@@ -123,6 +126,10 @@ caclient_create
       c == &caclient_ccw_aes_ecb_class ||
       c == &caclient_ccw_aes128_ecb_class)
     cac = constcw_create();
+#endif
+#if ENABLE_DEMULTI2
+  if (c == &caclient_bcas_class)
+    cac = bcas_create();
 #endif
   if (cac == NULL) {
     tvherror(LS_CACLIENT, "CA Client class %s is not available!", s);

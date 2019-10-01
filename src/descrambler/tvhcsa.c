@@ -91,8 +91,6 @@ tvhcsa_csa_cbc_flush
 
   csa->csa_fill = 0;
 
-#else
-#error "Unknown CSA descrambler"
 #endif
 }
 
@@ -100,11 +98,11 @@ static void
 tvhcsa_csa_cbc_descramble
   ( tvhcsa_t *csa, struct mpegts_service *s, const uint8_t *tsb, int tsb_len )
 {
+#if ENABLE_DVBCSA
   const uint8_t *tsb_end = tsb + tsb_len;
 
   assert(csa->csa_fill >= 0 && csa->csa_fill < csa->csa_fill_size);
 
-#if ENABLE_DVBCSA
   uint8_t *pkt;
   int_fast8_t ev_od;
   int_fast16_t len;
@@ -156,10 +154,24 @@ tvhcsa_csa_cbc_descramble
 
   }
 
-#else
-#error "Unknown CSA descrambler"
 #endif
 }
+
+#if ENABLE_DEMULTI2
+#include "demulti2/demulti2.h"
+
+static void
+tvhcsa_multi2_descramble
+  ( tvhcsa_t *csa, struct mpegts_service *s, const uint8_t *tsb, int len )
+{
+  const uint8_t *tsb2, *end2;
+
+  for (tsb2 = tsb, end2 = tsb + len; tsb2 < end2; tsb2 += 188)
+    multi2_decrypt_packet(csa->csa_priv, (unsigned char *) tsb2);
+
+  ts_recv_packet2(s, tsb, len);
+}
+#endif /* ENABLE_DEMULTI2 */
 
 int
 tvhcsa_set_type( tvhcsa_t *csa, struct mpegts_service *s, int type )
@@ -210,6 +222,14 @@ tvhcsa_set_type( tvhcsa_t *csa, struct mpegts_service *s, int type )
     csa->csa_flush         = tvhcsa_empty_flush;
     csa->csa_keylen        = 16;
     break;
+#if ENABLE_DEMULTI2
+  case DESCRAMBLER_MULTI2:
+    csa->csa_priv          = multi2_get_priv_struct();
+    csa->csa_descramble    = tvhcsa_multi2_descramble;
+    csa->csa_flush         = tvhcsa_empty_flush;
+    csa->csa_keylen        = 8;
+    break;
+#endif
   default:
     assert(0);
   }
@@ -235,6 +255,12 @@ void tvhcsa_set_key_even( tvhcsa_t *csa, const uint8_t *even )
   case DESCRAMBLER_AES128_ECB:
     aes128_set_even_control_word(csa->csa_priv, even);
     break;
+#if ENABLE_DEMULTI2
+  case DESCRAMBLER_MULTI2:
+    multi2_even_key_set(even, csa->csa_priv);
+    break;
+#endif
+  default:
     assert(0);
   }
 }
@@ -257,6 +283,11 @@ void tvhcsa_set_key_odd( tvhcsa_t *csa, const uint8_t *odd )
   case DESCRAMBLER_AES128_ECB:
     aes128_set_odd_control_word(csa->csa_priv, odd);
     break;
+#if ENABLE_DEMULTI2
+  case DESCRAMBLER_MULTI2:
+    multi2_odd_key_set(odd, csa->csa_priv);
+    break;
+#endif
   default:
     assert(0);
   }
@@ -297,6 +328,11 @@ tvhcsa_destroy ( tvhcsa_t *csa )
     case DESCRAMBLER_AES128_ECB:
       aes128_free_priv_struct(csa->csa_priv);
       break;
+#if ENABLE_DEMULTI2
+    case DESCRAMBLER_MULTI2:
+      multi2_free_priv_struct(csa->csa_priv);
+      break;
+#endif
     default:
       assert(0);
     }

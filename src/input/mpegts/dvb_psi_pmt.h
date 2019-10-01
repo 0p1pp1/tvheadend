@@ -41,6 +41,7 @@
 #define PMT_UPDATE_CAID_PID           (1<<14)
 #define PMT_REORDERED                 (1<<15)
 #define PMT_UPDATE_STREAM_TAG         (1<<24)
+#define PMT_UPDATE_STREAM_CAID        (1<<25)
 
 uint32_t dvb_psi_parse_pmt
   (mpegts_table_t *mt, const char *nicename, elementary_set_t *set,

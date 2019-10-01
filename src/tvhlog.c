@@ -184,7 +184,7 @@ tvhlog_subsys_t tvhlog_subsystems[] = {
 #if ENABLE_DDCI
   [LS_DDCI]          = { "ddci",          N_("DD-CI") },
 #endif
-
+  [LS_BCAS]          = { "bcas",          N_("BCAS Descrambler") },
 };
 
 static void

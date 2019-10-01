@@ -359,10 +359,10 @@ linuxdvb_adapter_add ( const char *path )
   linuxdvb_adapter_t *la_fe = NULL;
   char ci_path[512];
 #endif
+  ca_caps_t cac;
 #endif
   linuxdvb_adapter_t *la = NULL;
   struct dvb_frontend_info dfi;
-  ca_caps_t cac;
   htsmsg_t *conf = NULL, *feconf = NULL;
   int save = 0;
   dvb_fe_type_t type;

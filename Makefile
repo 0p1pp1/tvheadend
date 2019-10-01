@@ -619,6 +619,14 @@ SRCS-${CONFIG_SSL} += src/descrambler/algo/libaesdec.c
 SRCS-${CONFIG_SSL} += src/descrambler/algo/libaes128dec.c
 SRCS-${CONFIG_SSL} += src/descrambler/algo/libdesdec.c
 
+# BCAS
+SRCS-BCAS = \
+	src/descrambler/bcas.c \
+	src/descrambler/demulti2/demulti2.c
+
+SRCS-${CONFIG_DEMULTI2} += $(SRCS-BCAS)
+I18N-C += $(SRCS-BCAS)
+
 # DBUS
 SRCS-${CONFIG_DBUS_1}  += src/dbus.c
 
