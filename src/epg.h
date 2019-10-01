@@ -149,6 +149,7 @@ typedef uint64_t epg_changes_t;
 #define EPG_CHANGED_AGE_RATING     (1ULL<<31)
 #define EPG_CHANGED_FIRST_AIRED    (1ULL<<32)
 #define EPG_CHANGED_COPYRIGHT_YEAR (1ULL<<33)
+#define EPG_CHANGED_RELAY_DEST     (1ULL<<34)
 
 typedef struct epg_object_ops {
   void (*getref)  ( void *o );        ///< Get a reference
@@ -307,6 +308,8 @@ struct epg_broadcast
                                                ///< We'll call it copyright_year since words like "complete" and "finished"
                                                ///< sound too similar to dvr recorded functionality. We'll only store the
                                                ///< year since we only get year not month and day.
+
+  uint32_t                   relay_to_id;      ///< Next bc for relayed event
 };
 
 #define ISDB_EPG_UNDEF_DUR (165 * 3600 + 165 * 60 + 165)
@@ -325,6 +328,8 @@ int epg_broadcast_change_finish( epg_broadcast_t *b, epg_changes_t changed, int 
 /* Special */
 epg_broadcast_t *epg_broadcast_clone
   ( struct channel *channel, epg_broadcast_t *src, int *save );
+epg_broadcast_t *epg_broadcast_clone_meta
+  ( epg_broadcast_t *dest, epg_broadcast_t *src, int *save, epg_changes_t *changed );
 
 /* Mutators */
 int epg_broadcast_set_dvb_eid
@@ -416,6 +421,9 @@ int epg_broadcast_set_copyright_year
   __attribute__((warn_unused_result));
 int epg_broadcast_set_age_rating
   ( epg_broadcast_t *b, uint8_t age, epg_changes_t *changed )
+  __attribute__((warn_unused_result));
+int epg_broadcast_set_relay_dest
+  ( epg_broadcast_t *b, uint32_t id, epg_changes_t *changed )
   __attribute__((warn_unused_result));
 
 /* Accessors */
