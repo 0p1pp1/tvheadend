@@ -855,11 +855,28 @@ static int _eit_process_event_one
 
   /* Core fields */
   eid   = ptr[0] << 8 | ptr[1];
+  if (eid == 0) {
+    tvhwarn(LS_TBL_EIT, "found eid==0");
+    return -1;
+  }
   start = dvb_convert_date(&ptr[2], local);
   stop  = start + bcdtoint(ptr[7] & 0xff) * 3600 +
                   bcdtoint(ptr[8] & 0xff) * 60 +
                   bcdtoint(ptr[9] & 0xff);
   running = (ptr[10] >> 5) & 0x07;
+
+#if ENABLE_ISDB
+  /* Set running status for the current event. (since ISDB doesn't set it) */
+  if (tableid < 0x50 && sect == 0)
+    running = 4; /* running */
+
+  /* prefer EITp over EITsched */
+  if (((tableid & 0xf7) == 0x50 || (tableid & 0xf7) == 0x60) &&
+      ch->ch_epg_now && ch->ch_epg_now->running == EPG_RUNNING_NOW &&
+      start <= ch->ch_epg_now->start)
+    return 0;
+
+#endif
 
   if (epg_channel_ignore_broadcast(ch, start))
     return 0;
@@ -1318,7 +1335,7 @@ svc_ok:
 done:
   r = dvb_table_end((mpegts_psi_table_t *)mt, st, sect);
 complete:
-  if (ota && !r && (tableid >= 0x50 && tableid < 0x60))
+  if (ota && !r && (tableid == 0x4e || (tableid >= 0x50 && tableid < 0x60)))
     epggrab_ota_complete((epggrab_module_ota_t*)mod, ota);
   
   return r;
