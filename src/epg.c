@@ -631,6 +631,9 @@ static epg_broadcast_t *_epg_channel_add_broadcast
   /* Remove overlapping (before) */
   while ((ebc = RB_PREV(ret, sched_link)) != NULL) {
     if (ebc->stop <= ret->start) break;
+#if ENABLE_ISDB
+    if (ISDB_BC_DUR_UNDEFP(ebc)) break;
+#endif
     if (!_epg_object_can_remove(ebc, ret)) {
       tvhtrace(LS_EPG, "grabber %s for event %u has higher priority than overlap (b), removing added",
                ebc->grabber->id, ebc->id);
@@ -657,6 +660,9 @@ static epg_broadcast_t *_epg_channel_add_broadcast
   }
 
   /* Remove overlapping (after) */
+#if ENABLE_ISDB
+  if ( ! ISDB_BC_DUR_UNDEFP(ret) )
+#endif
   while ((ebc = RB_NEXT(ret, sched_link)) != NULL) {
     if (ebc->start >= ret->stop) break;
     if (!_epg_object_can_remove(ebc, ret)) {

@@ -848,6 +848,18 @@ static int _eit_process_event_one
   char tm1[32], tm2[32];
   int short_target = ((eit_module_t *)mod)->short_target;
 
+#if ENABLE_ISDB
+  /* skip events with start time undefined. (maybe delayed and set later) */
+  if (!memcmp(&ptr[2], "\xff\xff\xff\xff\xff", 5)) {
+    if ( !(tableid == 0x4e && sect == 1 && memcmp(&ptr[7], "\xff\xff\xff", 3)) )
+      return -1;
+    return 0;
+  }
+
+  if (!memcmp(&ptr[7], "\xff\xff\xff", 3) && tableid >= 0x50)
+    return -1;
+#endif
+
   /* Core fields */
   eid   = ptr[0] << 8 | ptr[1];
   if (eid == 0) {
@@ -914,7 +926,15 @@ static int _eit_process_event_one
    * Broadcast
    */
 
-  *save |= epg_broadcast_set_dvb_eid(ebc, eid, &changes);
+  uint16_t prev_eid = ebc->dvb_eid;
+  if (epg_broadcast_set_dvb_eid(ebc, eid, &changes) && prev_eid != 0) {
+    tvhinfo(LS_EPG, "event %u (ev-id:%u, %s) on %s @ %"PRItime_t
+            " was replaced by another(ev-id:%u)", ebc->id, prev_eid,
+            epg_broadcast_get_title(ebc, NULL), channel_get_name(ch, "(null)"),
+            ebc->start, eid);
+    dvr_event_replaced(ebc, (epg_broadcast_t *) 1 /* dummy */);
+    *save |= 1;
+  }
 
   /* Summary/Description */
   if (ev->summary)
@@ -972,7 +992,10 @@ static int _eit_process_event_one
   if (ev->copyright_year > 0)
     *save |= epg_broadcast_set_copyright_year(ebc, ev->copyright_year, &changes);
 
-  *save |= epg_broadcast_change_finish(ebc, changes, 0);
+  /* EIT may describe just a part of an event,
+   * so just forcibly "merge" here.
+   */
+  *save |= epg_broadcast_change_finish(ebc, changes, 1);
 
 
 running:
