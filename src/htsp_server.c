@@ -1283,6 +1283,10 @@ htsp_build_event
       if ((str = epg_broadcast_get_description(e, lang)))
         htsmsg_add_str(out, "description", str);
     }
+#if ENABLE_ISDB
+    if (e->relay_to_id)
+      htsmsg_add_u32(out, "relaytoId", e->relay_to_id);
+#endif
 
     if (e->credits)
       htsmsg_add_msg(out, "credits", htsmsg_copy(e->credits));

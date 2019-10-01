@@ -1030,6 +1030,8 @@ int epg_broadcast_change_finish
     save |= epg_broadcast_set_category(broadcast, NULL, NULL);
   if (!(changes & EPG_CHANGED_KEYWORD))
     save |= epg_broadcast_set_keyword(broadcast, NULL, NULL);
+  if (!(changes & EPG_CHANGED_RELAY_DEST))
+    save |= epg_broadcast_set_relay_dest(broadcast, 0, NULL);
   return save;
 }
 
@@ -1043,39 +1045,47 @@ epg_broadcast_t *epg_broadcast_clone
   ebc = epg_broadcast_find_by_time(channel, src->grabber,
                                    src->start, src->stop,
                                    1, save, &changes);
+  return epg_broadcast_clone_meta(ebc, src, save, &changes);
+}
+
+epg_broadcast_t *epg_broadcast_clone_meta
+  ( epg_broadcast_t *ebc, epg_broadcast_t *src, int *save,
+    epg_changes_t *changes )
+{
   if (ebc) {
     /* Copy metadata */
-    *save |= epg_broadcast_set_is_widescreen(ebc, src->is_widescreen, &changes);
-    *save |= epg_broadcast_set_is_hd(ebc, src->is_hd, &changes);
-    *save |= epg_broadcast_set_is_bw(ebc, src->is_bw, &changes);
-    *save |= epg_broadcast_set_lines(ebc, src->lines, &changes);
-    *save |= epg_broadcast_set_aspect(ebc, src->aspect, &changes);
-    *save |= epg_broadcast_set_is_deafsigned(ebc, src->is_deafsigned, &changes);
-    *save |= epg_broadcast_set_is_subtitled(ebc, src->is_subtitled, &changes);
-    *save |= epg_broadcast_set_is_audio_desc(ebc, src->is_audio_desc, &changes);
-    *save |= epg_broadcast_set_is_new(ebc, src->is_new, &changes);
-    *save |= epg_broadcast_set_is_repeat(ebc, src->is_repeat, &changes);
-    *save |= epg_broadcast_set_star_rating(ebc, src->star_rating, &changes);
-    *save |= epg_broadcast_set_age_rating(ebc, src->age_rating, &changes);
-    *save |= epg_broadcast_set_image(ebc, src->image, &changes);
-    *save |= epg_broadcast_set_genre(ebc, &src->genre, &changes);
-    *save |= epg_broadcast_set_title(ebc, src->title, &changes);
-    *save |= epg_broadcast_set_subtitle(ebc, src->subtitle, &changes);
-    *save |= epg_broadcast_set_summary(ebc, src->summary, &changes);
-    *save |= epg_broadcast_set_description(ebc, src->description, &changes);
-    *save |= epg_broadcast_set_epnum(ebc, &src->epnum, &changes);
-    *save |= epg_broadcast_set_credits(ebc, src->credits, &changes);
-    *save |= epg_broadcast_set_category(ebc, src->category, &changes);
-    *save |= epg_broadcast_set_keyword(ebc, src->keyword, &changes);
-    *save |= epg_broadcast_set_description(ebc, src->description, &changes);
+    *save |= epg_broadcast_set_is_widescreen(ebc, src->is_widescreen, changes);
+    *save |= epg_broadcast_set_is_hd(ebc, src->is_hd, changes);
+    *save |= epg_broadcast_set_is_bw(ebc, src->is_bw, changes);
+    *save |= epg_broadcast_set_lines(ebc, src->lines, changes);
+    *save |= epg_broadcast_set_aspect(ebc, src->aspect, changes);
+    *save |= epg_broadcast_set_is_deafsigned(ebc, src->is_deafsigned, changes);
+    *save |= epg_broadcast_set_is_subtitled(ebc, src->is_subtitled, changes);
+    *save |= epg_broadcast_set_is_audio_desc(ebc, src->is_audio_desc, changes);
+    *save |= epg_broadcast_set_is_new(ebc, src->is_new, changes);
+    *save |= epg_broadcast_set_is_repeat(ebc, src->is_repeat, changes);
+    *save |= epg_broadcast_set_star_rating(ebc, src->star_rating, changes);
+    *save |= epg_broadcast_set_age_rating(ebc, src->age_rating, changes);
+    *save |= epg_broadcast_set_image(ebc, src->image, changes);
+    *save |= epg_broadcast_set_genre(ebc, &src->genre, changes);
+    *save |= epg_broadcast_set_title(ebc, src->title, changes);
+    *save |= epg_broadcast_set_subtitle(ebc, src->subtitle, changes);
+    *save |= epg_broadcast_set_summary(ebc, src->summary, changes);
+    *save |= epg_broadcast_set_description(ebc, src->description, changes);
+    *save |= epg_broadcast_set_epnum(ebc, &src->epnum, changes);
+    *save |= epg_broadcast_set_credits(ebc, src->credits, changes);
+    *save |= epg_broadcast_set_category(ebc, src->category, changes);
+    *save |= epg_broadcast_set_keyword(ebc, src->keyword, changes);
+    *save |= epg_broadcast_set_description(ebc, src->description, changes);
     *save |= epg_broadcast_set_serieslink_uri
-               (ebc, src->serieslink ? src->serieslink->uri : NULL, &changes);
+               (ebc, src->serieslink ? src->serieslink->uri : NULL, changes);
     *save |= epg_broadcast_set_episodelink_uri
-               (ebc, src->episodelink ? src->episodelink->uri : NULL, &changes);
-    *save |= epg_broadcast_set_first_aired(ebc, src->first_aired, &changes);
-    *save |= epg_broadcast_set_copyright_year(ebc, src->copyright_year, &changes);
+               (ebc, src->episodelink ? src->episodelink->uri : NULL, changes);
+    *save |= epg_broadcast_set_first_aired(ebc, src->first_aired, changes);
+    *save |= epg_broadcast_set_copyright_year(ebc, src->copyright_year, changes);
+    *save |= epg_broadcast_set_relay_dest(ebc, src->relay_to_id, changes);
     _epg_object_set_grabber(ebc, src->grabber);
-    *save |= epg_broadcast_change_finish(ebc, changes, 0);
+    *save |= epg_broadcast_change_finish(ebc, *changes, 0);
   }
   return ebc;
 }
@@ -1145,6 +1155,32 @@ int epg_broadcast_set_dvb_eid
   if (!b) return 0;
   return _epg_object_set_u16(b, &b->dvb_eid, dvb_eid,
                              changed, EPG_CHANGED_DVB_EID);
+}
+
+int epg_broadcast_set_relay_dest
+  ( epg_broadcast_t *ebc, uint32_t dest_id, epg_changes_t *changed )
+{
+  int save = 0;
+  if (!ebc || ((epg_object_t *)ebc)->id == dest_id ) return 0;
+  if (changed) *changed |= EPG_CHANGED_RELAY_DEST;
+
+  if ( ebc->relay_to_id != dest_id ) {
+    ebc->relay_to_id = dest_id;
+    if ( !dest_id )
+      tvhinfo(LS_EPG, "removed event-relay from event %u (%s) on %s @ %"PRItime_t
+              ", but auto-created DVR entry for the relayed event will remain.",
+              ebc->id, epg_broadcast_get_title(ebc, NULL),
+              channel_get_name(ebc->channel, "(null)"), ebc->stop);
+
+    tvhtrace(LS_EPG, "event-relay from (eid:%5d) on %s @%"PRItime_t
+             " is relayed to broadcast:%d", ebc->dvb_eid,
+             ebc->channel ? channel_get_name(ebc->channel, "(null)") : "(null)",
+             ebc->start, dest_id);
+
+    _epg_object_set_updated(ebc);
+    save = 1;
+  }
+  return save;
 }
 
 int epg_broadcast_set_is_widescreen
@@ -1602,6 +1638,9 @@ htsmsg_t *epg_broadcast_serialize ( epg_broadcast_t *broadcast )
     htsmsg_add_str(m, "slink", broadcast->serieslink->uri);
   if (broadcast->episodelink)
     htsmsg_add_str(m, "elink", broadcast->episodelink->uri);
+  if (broadcast->relay_to_id)
+    htsmsg_add_u32(m, "relay_to_id", broadcast->relay_to_id);
+
   return m;
 }
 
@@ -1728,6 +1767,9 @@ epg_broadcast_t *epg_broadcast_deserialize
     *save |= epg_broadcast_set_serieslink_uri(ebc, str, &changes);
   if ((str = htsmsg_get_str(m, "elink")))
     *save |= epg_broadcast_set_episodelink_uri(ebc, str, &changes);
+
+  if (!htsmsg_get_u32(m, "relay_to_id", &u32))
+    *save |= epg_broadcast_set_relay_dest(ebc, u32, &changes);
 
   *save |= epg_broadcast_change_finish(ebc, changes, 0);
 
