@@ -36,6 +36,7 @@ struct th_descrambler_data;
 #define DESCRAMBLER_CSA_CBC	1
 #define DESCRAMBLER_DES_NCB	2 /* no block cipher mode! */
 #define DESCRAMBLER_AES_ECB	3
+#define DESCRAMBLER_MULTI2 4
 /* 128-bit keys */
 #define DESCRAMBLER_AES128_ECB  16
 

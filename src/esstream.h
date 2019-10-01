@@ -136,6 +136,7 @@ struct elementary_stream {
   int8_t es_delete_me;       /* Temporary flag for deleting streams */
 
   struct caid_list es_caids; /* CA ID's on this stream */
+  caid_t *es_stream_caid;
 
   tvhlog_limit_t es_cc_log;  /* CC error log limiter */
   uint32_t es_filter;        /* Filter temporary variable */

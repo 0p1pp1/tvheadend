@@ -672,6 +672,7 @@ static struct strtab keytypetab[] = {
   { "CSA",        DESCRAMBLER_CSA_CBC },
   { "DES",        DESCRAMBLER_DES_NCB },
   { "AES EBC",    DESCRAMBLER_AES_ECB },
+  { "BCAS",       DESCRAMBLER_MULTI2 },
   { "AES128 EBC", DESCRAMBLER_AES128_ECB },
 };
 
@@ -1299,7 +1300,6 @@ descrambler_table_callback
   int emm = (mt->mt_flags & MT_FAST) == 0;
   mpegts_service_t *t;
   int64_t clk, clk2, clk3;
-  uint8_t ki;
   int i, j;
 
   if (len < 6)
@@ -1357,7 +1357,15 @@ descrambler_table_callback
                 tvhdebug(LS_DESCRAMBLER, "quick ECM enabled for service '%s'",
                          t->s_dvb_svcname);
             }
+#if ENABLE_ISDB
+            dr->dr_ecm_start[0] = dr->dr_ecm_start[1] = clk;
+            if (dr->dr_quick_ecm)
+              for (i = 0; i < DESCRAMBLER_MAX_KEYS; i++)
+                dr->dr_keys[i].key_valid &= ~(0xc0);
+#else
             if ((ptr[0] & 0xfe) == 0x80) { /* 0x80 = even, 0x81 = odd */
+              uint8_t ki;
+
               j = ptr[0] & 1;
               if (dr->dr_ecm_parity == ECM_PARITY_81EVEN_80ODD)
                 j ^= 1;
@@ -1371,6 +1379,7 @@ descrambler_table_callback
                 }
               }
             }
+#endif  /* ENABLE_ISDB */
             tvhtrace(LS_DESCRAMBLER, "ECM message %02x:%02x (section %d, len %d, pid %d) for service \"%s\"",
                      ptr[0], ptr[1], des->number, len, mt->mt_pid, t->s_dvb_svcname);
           }
