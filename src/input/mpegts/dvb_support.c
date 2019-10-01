@@ -251,6 +251,15 @@ static inline size_t dvb_convert(int conv,
   }
 }
 
+/* Reset the text-decoder's state by inputting '\n'. (ARIB-STD B24) */
+static void isdb_reset_iconv_state(void)
+{
+  char dummy[4];
+
+  intlconv_to_utf8(dummy, sizeof(dummy),
+                   intlconv_charset_id("ARIB-STD-B24", 1, 1), "\n", 1);
+}
+
 /*
  * DVB String conversion according to EN 300 468, Annex A
  * Not all character sets are supported, but it should cover most of them
@@ -269,6 +278,29 @@ dvb_get_string
     *dst = 0;
     return 0;
   }
+
+#if ENABLE_ISDB
+  if (!dvb_charset || !*dvb_charset || !strcmp("AUTO", dvb_charset)
+      || !strcmp("ARIB-STD-B24", dvb_charset)) {
+    ssize_t l;
+
+    isdb_reset_iconv_state();
+    l = intlconv_to_utf8(dst, dstlen, intlconv_charset_id("ARIB-STD-B24", 1, 1),
+                         (const char *) src, srclen);
+    if (l < 0) {
+      dst[0] = 0;
+      return -1;
+    }
+    if (l >= dstlen)
+      dst[dstlen - 1] = 0;
+    else
+      dst[l] = 0;
+    return 0;
+  } else {
+    dst[0] = 0;
+    return -1;
+  }
+#endif  /* ENABLE_ISDB */
 
   /* Check custom conversion */
   while (conv && conv->func) {

@@ -246,12 +246,12 @@ intlconv_to_utf8( char *dst, size_t dst_size,
   }
   intlconv_last_src_ic = ic;
 found:
-  tvh_mutex_unlock(&intlconv_lock_src);
   inbuf       = (char **)&src;
   inbuf_left  = src_size;
   outbuf      = &dst;
   outbuf_left = dst_size;
   res = tvh_iconv(ic->ic_handle, inbuf, &inbuf_left, outbuf, &outbuf_left);
+  tvh_mutex_unlock(&intlconv_lock_src);
   if (res == -1)
     res = -errno;
   if (res >= 0)
@@ -326,6 +326,7 @@ const char *intlconv_charsets[] = {
   "ANSI_X3.110",
   "ARABIC",
   "ARABIC7",
+  "ARIB-STD-B24",
   "ARMSCII-8",
   "ASCII",
   "ASMO-708",
