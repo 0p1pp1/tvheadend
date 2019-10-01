@@ -1740,7 +1740,144 @@ epg_broadcast_t *epg_broadcast_deserialize
 // Reference (Sept 2016):
 // http://www.etsi.org/deliver/etsi_en/300400_300499/300468/01.11.01_60/en_300468v011101p.pdf
 
+/* 0 is a valid genre code in ISDB. so we cannot use it to indicate undef */
+#define EPG_GENRE_CODE_VOID 0xff
+
 #define C_ (const char *[])
+#if ENABLE_ISDB
+#include <unistr.h>
+#include <uninorm.h>
+
+static const char **_epg_genre_names[16][16] = {
+  { /* 00 */
+    C_{ u8"ニュース", u8"報道", NULL },
+    C_{ u8"定時", u8"総合", NULL },
+    C_{ u8"天気", NULL },
+    C_{ u8"特集", u8"ドキュメント", NULL },
+    C_{ u8"政治", u8"国会", NULL },
+    C_{ u8"経済", u8"市況", NULL },
+    C_{ u8"海外", u8"国際", NULL },
+    C_{ u8"解説", NULL },
+    C_{ u8"討論", u8"会談", NULL },
+    C_{ u8"報道特番", NULL },
+    C_{ u8"ローカル", u8"地域", NULL },
+    C_{ u8"交通", NULL },
+  },
+  { /* 01 */
+    C_{ u8"スポーツ", NULL },
+    C_{ u8"スポーツニュース", NULL },
+    C_{ u8"野球", NULL },
+    C_{ u8"サッカー", NULL },
+    C_{ u8"ゴルフ", NULL },
+    C_{ u8"その他の球技", NULL },
+    C_{ u8"相撲", u8"格闘技", NULL },
+    C_{ u8"オリンピック", u8"国際大会", NULL },
+    C_{ u8"マラソン", u8"陸上", u8"水泳", NULL },
+    C_{ u8"モータースポーツ", NULL },
+    C_{ u8"マリンスポーツ", u8"ウインタースポーツ", NULL },
+    C_{ u8"競馬", u8"公営競技", NULL },
+  },
+  { /* 02 */
+    C_{ u8"情報", u8"ワイドショー", NULL },
+    C_{ u8"芸能", u8"ワイドショー", NULL },
+    C_{ u8"ファッション", NULL },
+    C_{ u8"暮らし", u8"住まい", NULL },
+    C_{ u8"健康", u8"医療", NULL },
+    C_{ u8"ショッピング", u8"通販", NULL },
+    C_{ u8"グルメ", u8"料理", NULL },
+    C_{ u8"イベント", NULL },
+    C_{ u8"番組紹介", u8"お知らせ", NULL },
+  },
+  { /* 03 */
+    C_{ u8"ドラマ", NULL },
+    C_{ u8"国内ドラマ", NULL },
+    C_{ u8"海外ドラマ", NULL },
+    C_{ u8"時代劇", NULL },
+  },
+  { /* 04 */
+    C_{ u8"音楽", NULL },
+    C_{ u8"国内ロック・ポップス", NULL },
+    C_{ u8"海外ロック・ポップス", NULL },
+    C_{ u8"クラシック", u8"オペラ", NULL },
+    C_{ u8"ジャズ", u8"フュージョン", NULL },
+    C_{ u8"歌謡曲", u8"演歌", NULL },
+    C_{ u8"ライブ", u8"コンサート", NULL },
+    C_{ u8"ランキング", u8"リクエスト", NULL },
+    C_{ u8"カラオケ", u8"のど自慢", NULL },
+    C_{ u8"民謡", u8"邦楽", NULL },
+    C_{ u8"童謡", u8"キッズ", NULL },
+    C_{ u8"民族音楽", u8"ワールドミュージック", NULL },
+  },
+  { /* 05 */
+    C_{ u8"バラエティ", NULL },
+    C_{ u8"クイズ", NULL },
+    C_{ u8"ゲーム", NULL },
+    C_{ u8"トークバラエティ", NULL },
+    C_{ u8"お笑い・コメディ", NULL },
+    C_{ u8"音楽バラエティ", NULL },
+    C_{ u8"旅バラエティ", NULL },
+    C_{ u8"料理バラエティ", NULL },
+  },
+  { /* 06 */
+    C_{ u8"映画", NULL },
+    C_{ u8"洋画", NULL },
+    C_{ u8"邦画", NULL },
+    C_{ u8"アニメ", NULL },
+  },
+  { /* 07 */
+    C_{ u8"アニメ", u8"特撮", NULL },
+    C_{ u8"国内アニメ", NULL },
+    C_{ u8"海外アニメ", NULL },
+    C_{ u8"特撮", NULL },
+  },
+  { /* 08 */
+    C_{ u8"ドキュメンタリー", u8"教養", NULL },
+    C_{ u8"社会", u8"時事", NULL },
+    C_{ u8"歴史", u8"紀行", NULL },
+    C_{ u8"自然", u8"動物", u8"環境", NULL },
+    C_{ u8"宇宙", u8"科学", u8"医学", NULL },
+    C_{ u8"カルチャー", u8"伝統文化", NULL },
+    C_{ u8"文学", u8"文芸", NULL },
+    C_{ u8"スポーツ", NULL },
+    C_{ u8"ドキュメンタリー全般", NULL },
+    C_{ u8"インタビュー", u8"討論", NULL },
+  },
+  { /* 09 */
+    C_{ u8"劇場", u8"公演", NULL },
+    C_{ u8"時代劇", u8"新劇", NULL },
+    C_{ u8"ミュージカル", NULL },
+    C_{ u8"ダンス", u8"バレエ", NULL },
+    C_{ u8"落語", u8"演芸", NULL },
+    C_{ u8"歌舞伎", u8"古典", NULL },
+  },
+  { /* 0x0A */
+    C_{ u8"趣味", u8"教育", NULL },
+    C_{ u8"旅", u8"釣り", u8"アウトドア", NULL },
+    C_{ u8"園芸", u8"ペット", u8"手芸", NULL },
+    C_{ u8"音楽", u8"美術", u8"工芸", NULL },
+    C_{ u8"囲碁", u8"将棋", NULL },
+    C_{ u8"麻雀", u8"パチンコ", NULL },
+    C_{ u8"車", u8"オートバイ", NULL },
+    C_{ u8"コンピュータ", u8"TVゲーム", NULL },
+    C_{ u8"会話", u8"語学", NULL },
+    C_{ u8"幼児", u8"小学生", NULL },
+    C_{ u8"中学生", u8"高校生", NULL },
+    C_{ u8"大学生", u8"受験", NULL },
+    C_{ u8"生涯教育", u8"資格", NULL },
+    C_{ u8"教育問題", NULL },
+  },
+  { /* 0x0B */
+    C_{ u8"福祉", NULL },
+    C_{ u8"高齢者", NULL },
+    C_{ u8"障害者", NULL },
+    C_{ u8"社会福祉", NULL },
+    C_{ u8"ボランティア", NULL },
+    C_{ u8"手話", NULL },
+    C_{ u8"文字（字幕）", NULL },
+    C_{ u8"音声解説", NULL },
+  },
+};
+#else
 static const char **_epg_genre_names[16][16] = {
   { /* 00 */
     C_{ "", NULL  }
@@ -1926,12 +2063,19 @@ static const char **_epg_genre_names[16][16] = {
     C_{ N_("Leisure hobbies"), NULL },
   }
 };
+#endif  /* ENABLE_ISDB */
 
 static const char *_genre_get_name(int a, int b, const char *lang)
 {
   static __thread char name[64];
   size_t l = 0;
-  const char **p = _epg_genre_names[a][b];
+  const char **p;
+
+#if ENABLE_ISDB
+  if (b == 16)
+    return (a <= 0x0b) ? u8"その他" : NULL;
+#endif
+  p = _epg_genre_names[a][b];
   name[0] = '\0';
   if (p == NULL)
     return NULL;
@@ -1945,6 +2089,43 @@ static const char *_genre_get_name(int a, int b, const char *lang)
 // Note: | 0x20 is a cheats (fast) way of lowering case
 static int _genre_str_match ( const char *a, const char *b )
 {
+#if ENABLE_ISDB
+  static __thread uint8_t a1[128], b1[128];
+  size_t alen, blen;
+  const uint8_t *p, *q;
+
+  if (!a || !b) return 0;
+  alen = sizeof(a1);
+  blen = sizeof(b1);
+  p = (const uint8_t *) a;
+  q = (const uint8_t *) b;
+  p = u8_normalize(UNINORM_NFKC, p, u8_strlen(p), a1, &alen);
+  q = u8_normalize(UNINORM_NFKC, q, u8_strlen(q), b1, &blen);
+  while (p || q) {
+    ucs4_t x, y;
+
+    x = 0;
+    while (p) {
+      p = u8_next(&x, p);
+      if (x != U' ')
+        break;
+      x = 0;
+    }
+
+    y = 0;
+    while (q) {
+      q = u8_next(&y, q);
+      if (y != U' ')
+        break;
+      y = 0;
+    }
+
+    if (x != y)
+      return 0;
+  }
+
+  return 1;
+#else
   if (!a || !b) return 0;
   while (*a != '\0' || *b != '\0') {
     while (*a == ' ') a++;
@@ -1953,25 +2134,34 @@ static int _genre_str_match ( const char *a, const char *b )
     a++; b++;
   }
   return (*a == '\0' && *b == '\0'); // end of string(both)
+#endif
 }
 
 static uint8_t _epg_genre_find_by_name ( const char *name, const char *lang )
 {
   uint8_t a, b;
   const char *s;
+#if ENABLE_ISDB
+  for (a = 0; a < 12; a++) {
+#else
   for (a = 1; a < 11; a++) {
+#endif
     for (b = 0; b < 16; b++) {
       s = _genre_get_name(a, b, lang);
       if (_genre_str_match(name, s))
+#if ENABLE_ISDB
+        return (a << 4) | (b ? b - 1 : 0);
+#else
         return (a << 4) | b;
+#endif
     }
   }
-  return 0; // undefined
+  return EPG_GENRE_CODE_VOID; // undefined
 }
 
 uint8_t epg_genre_get_eit ( const epg_genre_t *genre )
 {
-  if (!genre) return 0;
+  if (!genre) return EPG_GENRE_CODE_VOID;
   return genre->code;
 }
 
@@ -1985,14 +2175,18 @@ size_t epg_genre_get_str ( const epg_genre_t *genre, int major_only,
   if (!genre || !buf) return 0;
   maj = (genre->code >> 4) & 0xf;
   s = _genre_get_name(maj, 0, lang);
-  if (s[0] == '\0') return 0;
+  if (!s || s[0] == '\0') return 0;
   min = major_only ? 0 : (genre->code & 0xf);
+#if ENABLE_ISDB
+  /* shift by 1 since min can have value '0' as a valid minor genre. */
+  if (!major_only) min ++;
+#endif
   if (!min || major_prefix ) {
     tvh_strlcatf(buf, len, ret, "%s", s);
   }
   if (min) {
     s = _genre_get_name(maj, min, lang);
-    if (s[0]) {
+    if (s && s[0]) {
       tvh_strlcatf(buf, len, ret, " : ");
       tvh_strlcatf(buf, len, ret, "%s", s);
     }
@@ -2003,7 +2197,7 @@ size_t epg_genre_get_str ( const epg_genre_t *genre, int major_only,
 int epg_genre_list_add ( epg_genre_list_t *list, epg_genre_t *genre )
 {
   epg_genre_t *g1, *g2;
-  if (!list || !genre || !genre->code) return 0;
+  if (!list || !genre || genre->code == EPG_GENRE_CODE_VOID) return 0;
   g1 = LIST_FIRST(list);
   if (!g1) {
     g2 = calloc(1, sizeof(epg_genre_t));
@@ -2048,6 +2242,10 @@ int epg_genre_list_add_by_eit ( epg_genre_list_t *list, uint8_t eit )
 {
   epg_genre_t g;
   g.code = eit;
+#if !ENABLE_ISDB
+  if (eit == 0)
+    g.code = EPG_GENRE_CODE_VOID;
+#endif
   return epg_genre_list_add(list, &g);
 }
 
@@ -2087,16 +2285,16 @@ htsmsg_t *epg_genres_list_all ( int major_only, int major_prefix, const char *la
 {
   int i, j;
   htsmsg_t *e, *m;
-  const char *s;
+  static __thread char s[128];
   m = htsmsg_create_list();
   for (i = 0; i < 16; i++ ) {
     for (j = 0; j < (major_only ? 1 : 16); j++) {
-      if (_epg_genre_names[i][j]) {
+      epg_genre_t g;
+      g.code = (i << 4) | j;
+      if (epg_genre_get_str(&g, major_only, major_prefix, s, sizeof(s), lang)) {
         e = htsmsg_create_map();
-        htsmsg_add_u32(e, "key", (i << 4) | (major_only ? 0 : j));
-        s = _genre_get_name(i, j, lang);
+        htsmsg_add_u32(e, "key", g.code);
         htsmsg_add_str(e, "val", s);
-        // TODO: use major_prefix
         htsmsg_add_msg(m, NULL, e);
       }
     }
