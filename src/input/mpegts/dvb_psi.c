@@ -511,14 +511,17 @@ dvb_desc_service
     char *sname, size_t sname_len, const char *charset )
 {
   int r;
+#if !ENABLE_ISDB
   size_t l;
   char *str;
+#endif
 
   if (len < 2)
     return -1;
 
   /* Type */
   *stype = *ptr++;
+  len --;
 
   /* Provider */
   if ((r = dvb_get_string_with_len(sprov, sprov_len, ptr, len, charset, NULL)) < 0)
@@ -528,6 +531,7 @@ dvb_desc_service
   if (dvb_get_string_with_len(sname, sname_len, ptr+r, len-r, charset, NULL) < 0)
     return -1;
 
+#if !ENABLE_ISDB
   /* Cleanup name */
   str = sname;
   while (*str && *str <= ' ')
@@ -537,6 +541,7 @@ dvb_desc_service
   l = strlen(str);
   while (l > 1 && str[l-1] <= ' ')
     str[--l] = '\0';
+#endif
 
   return 0;
 }
@@ -1619,7 +1624,9 @@ dvb_sdt_mux
   (mpegts_table_t *mt, mpegts_mux_t *mm, mpegts_mux_t *mm_orig,
    const uint8_t *ptr, int len, uint8_t tableid)
 {
+#if !ENABLE_ISDB
   uint32_t priv = 0;
+#endif
   uint8_t dtag;
   const uint8_t *lptr, *dptr;
   int llen, dlen;
@@ -1660,6 +1667,7 @@ dvb_sdt_mux
                                 sizeof(sprov), sname, sizeof(sname), charset))
             tvhtrace(mt->mt_subsys, "%s:      service name error", mt->mt_name);
           break;
+#if !ENABLE_ISDB
         case DVB_DESC_DEF_AUTHORITY:
           if (dvb_get_string(sauth, sizeof(sauth), dptr, dlen, charset, NULL))
             tvhtrace(mt->mt_subsys, "%s:      auth error", mt->mt_name);
@@ -1676,6 +1684,7 @@ dvb_sdt_mux
             if (dvb_get_string(sname, sizeof(sname), dptr, dlen, charset, NULL))
               tvhtrace(mt->mt_subsys, "%s:      bskyb nvod error", mt->mt_name);
           break;
+#endif
       }
     }}
 
