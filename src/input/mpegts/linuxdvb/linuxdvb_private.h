@@ -388,6 +388,7 @@ extern const idclass_t linuxdvb_switch_class;
 extern const idclass_t linuxdvb_diseqc_class;
 
 extern const idclass_t linuxdvb_satconf_class;
+extern const idclass_t linuxdvb_satconf_isdbs_class;
 extern const idclass_t linuxdvb_satconf_lnbonly_class;
 extern const idclass_t linuxdvb_satconf_2port_class;
 extern const idclass_t linuxdvb_satconf_4port_class;

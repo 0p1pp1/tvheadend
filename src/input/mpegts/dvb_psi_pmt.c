@@ -343,8 +343,12 @@ dvb_psi_parse_pmt
       break;
 
     case 0x0f:
+#if ENABLE_ISDB
+      /* fall through to SCT_AAC */
+#else
       hts_stream_type = SCT_MP4A;
       break;
+#endif
 
     case 0x11:
       hts_stream_type = SCT_AAC;

@@ -761,6 +761,14 @@ const idclass_t dvb_mux_isdb_t_class =
       .desc     = N_("The guard interval used by the mux. "
                      "If you're not sure of the value leave as AUTO."),
     },
+    {
+      .type     = PT_U32,
+      .id       = "layer_enabled",
+      .name     = N_("Selected layers"),
+      .desc     = N_("OR'ed value of 1,2,4 which correspond to Layer A,B,C respectively."),
+      .off      = offsetof(dvb_mux_t, lm_tuning.u.dmc_fe_isdbt.enabled_layers),
+      .def.u32  = ISDBT_LAYER_ALL,
+    },
     /* Layer A */
     {
       MUX_PROP_STR("layera_fec", N_("Layer A: FEC"), isdb_t, isdbt_fec_a, N_("AUTO")),
@@ -1141,7 +1149,7 @@ dvb_mux_display_name ( mpegts_mux_t *mm, char *buf, size_t len )
   if (lm->lm_tuning.dmc_fe_type == DVB_TYPE_CABLECARD)
     snprintf(buf, len, "%u", lm->lm_tuning.u.dmc_fe_cablecard.vchannel);
   else {
-    if (ln->ln_type == DVB_TYPE_S) {
+    if (ln->ln_type == DVB_TYPE_S || ln->ln_type == DVB_TYPE_ISDB_S) {
       const char *s = dvb_pol2str(lm->lm_tuning.u.dmc_fe_qpsk.polarisation);
       if (s) extra[0] = *s;
       extra[1] = '\0';
@@ -1283,7 +1291,7 @@ dvb_mux_create0
     htsmsg_destroy(c2);
   }
 
-  if (ln->ln_type == DVB_TYPE_S) {
+  if (ln->ln_type == DVB_TYPE_S || ln->ln_type == DVB_TYPE_ISDB_S) {
     if (ln->mn_satpos == INT_MAX) {
       /* Update the satellite position for the network settings */
       if (lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos != INT_MAX)

@@ -1048,6 +1048,11 @@ dvb_mux_conf_init ( mpegts_network_t *ln,
   case DVB_TYPE_S:
     dmc->u.dmc_fe_qpsk.orbital_pos = INT_MAX;
     break;
+  case DVB_TYPE_ISDB_S:
+    dmc->dmc_fe_modulation = DVB_MOD_PSK_8;
+    dmc->u.dmc_fe_qpsk.polarisation = DVB_POLARISATION_CIRCULAR_RIGHT;
+    dmc->u.dmc_fe_qpsk.orbital_pos = INT_MAX;
+    break;
   default:
     break;
   }
@@ -1141,6 +1146,21 @@ dvb_mux_conf_str_cablecard(dvb_mux_conf_t *dmc, char *buf, size_t bufsize)
 }
 
 static int
+dvb_mux_conf_str_isdb_s ( dvb_mux_conf_t *dmc, char *buf, size_t bufsize )
+{
+  const char *pol = dvb_pol2str(dmc->u.dmc_fe_qpsk.polarisation);
+
+  return
+  snprintf(buf, bufsize,
+           "%s freq %d %c sym %d ts_id %d",
+           dvb_delsys2str(dmc->dmc_fe_delsys),
+           dmc->dmc_fe_freq,
+           pol ? pol[0] : 'X',
+           dmc->u.dmc_fe_qpsk.symbol_rate,
+           dmc->dmc_fe_stream_id);
+}
+
+static int
 dvb_mux_conf_str_isdb_t ( dvb_mux_conf_t *dmc, char *buf, size_t bufsize )
 {
   char hp[16];
@@ -1185,6 +1205,8 @@ dvb_mux_conf_str ( dvb_mux_conf_t *dmc, char *buf, size_t bufsize )
     return dvb_mux_conf_str_atsc_t(dmc, buf, bufsize);
   case DVB_TYPE_CABLECARD:
     return dvb_mux_conf_str_cablecard(dmc, buf, bufsize);
+  case DVB_TYPE_ISDB_S:
+    return dvb_mux_conf_str_isdb_s(dmc, buf, bufsize);
   case DVB_TYPE_ISDB_T:
     return dvb_mux_conf_str_isdb_t(dmc, buf, bufsize);
   default:

@@ -1319,6 +1319,18 @@ static int _eit_process_event_one
     *save |= epg_broadcast_set_copyright_year(ebc, ev->copyright_year, &changes);
 
 #if ENABLE_ISDB
+  /* maybe no need to update service_type dynamically */
+#if 0
+  if (tableid <= 0x4f && sect == 0) {
+    int new_stype;
+
+    new_stype = ev->hd ? ST_HDTV : ST_SDTV;
+    if (svc->s_servicetype != new_stype) {
+      svc->s_servicetype = new_stype;
+      idnode_changed(&svc->s_id);
+    }
+  }
+#endif
   if (tableid <= 0x4f && sect == 0 && ev->sct_props.tag != STREAM_TAG_NONE) {
     service_t *sv;
     elementary_stream_t *es;

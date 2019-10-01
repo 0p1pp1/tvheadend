@@ -43,7 +43,8 @@ static const char *scanfile_region_types[][2] = {
   { "dvb-c", "dvbc" },
   { "atsc-t", NULL  },
   { "atsc-c", NULL  },
-  { "isdb-t", NULL  }
+  { "isdb-t", NULL  },
+  { "isdb-s", NULL  }
 };
 
 #define REGIONS ARRAY_SIZE(scanfile_region_types)
@@ -91,6 +92,7 @@ static const struct {
   {"ir", "Iran"},
   {"is", "Iceland"},
   {"it", "Italy"},
+  {"jp", "Japan"},
   {"lt", "Lithuania"},
   {"lu", "Luxembourg"},
   {"lv", "Latvia"},
@@ -337,7 +339,7 @@ scanfile_create_network
   /* Region */
   buf = malloc(strlen(name) + 1);
   strcpy(buf, name);
-  if (!strcmp(type, "dvb-s")) {
+  if (!strcmp(type, "dvb-s") || !strcmp(type, "isdb-s")) {
     reg = scanfile_region_create(type, "geo", "Geo-synchronous Orbit");
   } else {
     str = buf;
@@ -366,7 +368,8 @@ scanfile_create_network
   }
   *str = '\0';
   opos = INT_MAX;
-  if (!strcmp(type, "dvb-s") && scanfile_network_dvbs_pos(buf, &opos)) {
+  if ((!strcmp(type, "dvb-s") || !strcmp(type, "isdb-s"))
+      && scanfile_network_dvbs_pos(buf, &opos)) {
     int sizeneeded = snprintf(NULL, 0, "%c%3i.%i%c:%s", opos < 0 ? '<' : '>',
                                                    abs(opos) / 10, abs(opos) % 10,
                                                    opos < 0 ? 'W' :'E', buf);
@@ -668,7 +671,9 @@ scanfile_load_dvbv5
       if ((mux->u.dmc_fe_ofdm.bandwidth = dvb_str2bw(x)) == -1)
         mux_fail(r, "wrong bandwidth '%s'", x);
     }
-    
+
+    mux->u.dmc_fe_isdbt.enabled_layers = htsmsg_get_u32_or_default(l, "ISDBT_LAYER_ENABLED", ISDBT_LAYER_ALL);
+
     if ((x = htsmsg_get_str(l, "INVERSION")))
       if ((mux->dmc_fe_inversion = dvb_str2inver(x)) == -1)
         mux_fail(r, "wrong inversion '%s'", x);
@@ -708,6 +713,13 @@ scanfile_load_dvbv5
     mux->u.dmc_fe_isdbt.layers[0].time_interleaving = htsmsg_get_u32_or_default(l, "ISDBT_LAYERA_TIME_INTERLEAVING", 0);
     mux->u.dmc_fe_isdbt.layers[1].time_interleaving = htsmsg_get_u32_or_default(l, "ISDBT_LAYERB_TIME_INTERLEAVING", 0);
     mux->u.dmc_fe_isdbt.layers[2].time_interleaving = htsmsg_get_u32_or_default(l, "ISDBT_LAYERC_TIME_INTERLEAVING", 0);
+
+  } else if (mux->dmc_fe_delsys == DVB_SYS_ISDBS) {
+
+    mux->dmc_fe_modulation = DVB_MOD_PSK_8;
+    mux->u.dmc_fe_qpsk.polarisation = DVB_POLARISATION_CIRCULAR_RIGHT;
+    if (htsmsg_get_s32(l, "STREAM_ID", &mux->dmc_fe_stream_id))
+      mux_fail0(r, "isdb-s: undefined TS id");
 
   } else {
 
