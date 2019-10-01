@@ -762,6 +762,7 @@ linuxdvb_adapter_init ( void )
   idclass_register(&linuxdvb_diseqc_class);
 
   idclass_register(&linuxdvb_satconf_class);
+  idclass_register(&linuxdvb_satconf_isdbs_class);
   idclass_register(&linuxdvb_satconf_lnbonly_class);
   idclass_register(&linuxdvb_satconf_2port_class);
   idclass_register(&linuxdvb_satconf_4port_class);

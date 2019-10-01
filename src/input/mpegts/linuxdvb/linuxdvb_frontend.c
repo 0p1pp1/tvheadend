@@ -457,6 +457,21 @@ const idclass_t linuxdvb_frontend_isdb_s_class =
   .ic_doc        = tvh_doc_linuxdvb_frontend_dvbs_class,
   .ic_caption    = N_("TV Adapters - Linux ISDB-S Frontend (Master)"),
   .ic_properties = (const property_t[]){
+    {
+      .type     = PT_STR,
+      .id       = "satconf",
+      .name     = N_("Satellite config"),
+      .desc     = N_("The satellite configuration to use."),
+      .opts     = PO_NOSAVE,
+      .set      = linuxdvb_frontend_dvbs_class_satconf_set,
+      .get      = linuxdvb_frontend_dvbs_class_satconf_get,
+      .list     = linuxdvb_satconf_type_list,
+      .def.s    = "isdb-s"
+    },
+    {
+      .id       = "networks",
+      .type     = PT_NONE,
+    },
     {}
   }
 };
@@ -1612,6 +1627,7 @@ linuxdvb_frontend_clear
     return -1;
   }
 
+#if !ENABLE_ISDB
   if (mmi) {
     dvb_mux_t *lm = (dvb_mux_t*)mmi->mmi_mux;
     dvb_mux_conf_t *dmc = &lm->lm_tuning;
@@ -1628,6 +1644,7 @@ linuxdvb_frontend_clear
       return -1;
     }
   }
+#endif
 #endif
 
   return 0;
@@ -1814,6 +1831,7 @@ linuxdvb_frontend_tune0
     break;
 #if DVB_API_VERSION >= 5
   case DVB_TYPE_ISDB_T:
+  case DVB_TYPE_ISDB_S:
   case DVB_TYPE_DAB:
     break;
 #endif
@@ -1929,7 +1947,9 @@ linuxdvb_frontend_tune0
 #if DVB_VER_ATLEAST(5,1)
     S2CMD(DTV_GUARD_INTERVAL, TRU(isdbt.guard_interval, guard_tbl, GUARD_INTERVAL_AUTO));
     S2CMD(DTV_TRANSMISSION_MODE, TRANSMISSION_MODE_AUTO);
-    S2CMD(DTV_ISDBT_LAYER_ENABLED,     7);
+    if (!dmc->u.dmc_fe_isdbt.enabled_layers)
+      dmc->u.dmc_fe_isdbt.enabled_layers = ISDBT_LAYER_ALL;
+    S2CMD(DTV_ISDBT_LAYER_ENABLED,     dmc->u.dmc_fe_isdbt.enabled_layers);
     S2CMD(DTV_ISDBT_PARTIAL_RECEPTION, 1);
     S2CMD(DTV_ISDBT_SOUND_BROADCASTING,0);
     S2CMD(DTV_ISDBT_SB_SUBCHANNEL_ID,  0);
@@ -1941,13 +1961,15 @@ linuxdvb_frontend_tune0
       S2CMD(DTV_ISDBT_LAYERA_SEGMENT_COUNT     + j, dmc->u.dmc_fe_isdbt.layers[i].segment_count);
       S2CMD(DTV_ISDBT_LAYERA_TIME_INTERLEAVING + j, dmc->u.dmc_fe_isdbt.layers[i].time_interleaving);
     }
+    if (lfe->lfe_lna)
+      S2CMD(DTV_LNA, 1);
 #endif
 
   /* ISDB-S */
   } else if (lfe->lfe_type == DVB_TYPE_ISDB_S) {
-    r = dmc->dmc_fe_stream_id != DVB_NO_STREAM_ID_FILTER ? (dmc->dmc_fe_stream_id & 0xFF) |
-        ((dmc->dmc_fe_pls_code & 0x3FFFF)<<8) | ((dmc->dmc_fe_pls_mode & 0x3)<<26) :
-        DVB_NO_STREAM_ID_FILTER;
+    if (dmc->dmc_fe_stream_id == DVB_NO_STREAM_ID_FILTER || dmc->dmc_fe_stream_id == 0)
+      dmc->dmc_fe_stream_id = lm->mm_tsid;
+    r = dmc->dmc_fe_stream_id;
 #if DVB_VER_ATLEAST(5,9)
     S2CMD(DTV_STREAM_ID,       r);
 #if DVB_VER_ATLEAST(5,11)
@@ -2081,7 +2103,10 @@ linuxdvb_frontend_wizard_set( tvh_input_t *ti, htsmsg_t *conf, const char *lang 
       htsmsg_t *conf = htsmsg_create_map();
       htsmsg_t *elems = htsmsg_create_list();
       htsmsg_t *elem = htsmsg_create_map();
-      htsmsg_add_str(conf, "type", "4port");
+      if (lfe->lfe_type == DVB_TYPE_ISDB_S)
+        htsmsg_add_str(conf, "type", "isdb-s");
+      else
+        htsmsg_add_str(conf, "type", "4port");
       htsmsg_add_bool(elem, "enable", 1);
       htsmsg_add_msg(elem, "networks", nlist);
       htsmsg_add_msg(elems, NULL, elem);
@@ -2238,7 +2263,8 @@ linuxdvb_frontend_create
   mpegts_pid_init(&lfe->lfe_pids);
  
   /* Create satconf */
-  if (lfe->lfe_type == DVB_TYPE_S && !lfe->lfe_satconf && !muuid) {
+  if ((lfe->lfe_type == DVB_TYPE_S || lfe->lfe_type == DVB_TYPE_ISDB_S)
+      && !lfe->lfe_satconf && !muuid) {
     scconf = conf ? htsmsg_get_map(conf, "satconf") : NULL;
     lfe->lfe_satconf = linuxdvb_satconf_create(lfe, scconf);
   }

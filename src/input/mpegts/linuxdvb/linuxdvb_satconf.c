@@ -113,6 +113,21 @@ linuxdvb_satconf_class_network_enum( void *o, const char *lang )
   return m;
 }
 
+static htsmsg_t *
+linuxdvb_satconf_class_isdbs_network_enum( void *o, const char *lang )
+{
+  htsmsg_t *m = htsmsg_create_map();
+  htsmsg_t *p = htsmsg_create_map();
+  htsmsg_add_str(m, "type",  "api");
+  htsmsg_add_str(m, "uri",   "idnode/load");
+  htsmsg_add_str(m, "event", "mpegts_network");
+  htsmsg_add_u32(p, "enum",  1);
+  htsmsg_add_str(p, "class", dvb_network_isdb_s_class.ic_class);
+  htsmsg_add_msg(m, "params", p);
+
+  return m;
+}
+
 static char *
 linuxdvb_satconf_ele_class_network_rend( void *o, const char *lang );
 
@@ -321,6 +336,32 @@ const idclass_t linuxdvb_satconf_class =
       .off      = offsetof(linuxdvb_satconf_t, ls_lnb_highvol),
       .opts     = PO_ADVANCED,
       .def.i    = 1
+    },
+    {}
+  }
+};
+
+/*
+ * Simple LNB in Japan (for ISDB-S)
+ */
+const idclass_t linuxdvb_satconf_isdbs_class =
+{
+  .ic_super      = &linuxdvb_satconf_class,
+  .ic_class      = "linuxdvb_satconf_isdbs",
+  .ic_doc        = tvh_doc_linuxdvb_satconf_class,
+  .ic_caption    = N_("ISDB-S simple"),
+  .ic_properties = (const property_t[]) {
+    {
+      .type     = PT_STR,
+      .id       = "networks",
+      .name     = N_("Networks"),
+      .desc     = N_("The networks assigned to the device."),
+      .islist   = 1,
+      .get      = linuxdvb_satconf_class_network_get0,
+      .set      = linuxdvb_satconf_class_network_set0,
+      .list     = linuxdvb_satconf_class_isdbs_network_enum,
+      .rend     = linuxdvb_satconf_class_network_rend0,
+      .opts     = PO_NOSAVE,
     },
     {}
   }
@@ -784,6 +825,13 @@ const idclass_t linuxdvb_satconf_advanced_class =
 /* Types/classes */
 static struct linuxdvb_satconf_type linuxdvb_satconf_types[] = {
   {
+    .type  = "isdb-s",
+    .name  = N_("Japanese Universal LNB(ISDB-S)"),
+    .idc   = &linuxdvb_satconf_isdbs_class,
+    .ports = 1,
+    .enable = 1,
+  },
+  {
     .type   = "simple",
     .name   = N_("Universal LNB only"),
     .idc    = &linuxdvb_satconf_lnbonly_class,
@@ -928,7 +976,8 @@ linuxdvb_satconf_start ( linuxdvb_satconf_t *ls, int delay, int vol )
   if (vol >= 0 && linuxdvb_diseqc_set_volt(ls, vol))
     return -1;
 
-  if (ls->ls_last_tone_off != 1) {
+  if (ls->ls_last_tone_off != 1 &&
+      ((linuxdvb_frontend_t *)ls->ls_frontend)->lfe_type != DVB_TYPE_ISDB_S) {
     tvhtrace(LS_DISEQC, "initial tone off");
     if (ioctl(linuxdvb_satconf_fe_fd(ls), FE_SET_TONE, SEC_TONE_OFF)) {
       tvherror(LS_DISEQC, "failed to disable tone");
@@ -1035,8 +1084,9 @@ linuxdvb_satconf_ele_tune ( linuxdvb_satconf_ele_t *lse )
   if (linuxdvb_diseqc_set_volt(ls, vol))
     return -1;
 
-  /* Set the tone (en50494 don't use tone) */
-  if (!lse->lse_en50494) {
+  /* Set the tone (en50494/ISDB-S don't use tone) */
+  if (!lse->lse_en50494 &&
+      ((linuxdvb_frontend_t *)ls->ls_frontend)->lfe_type != DVB_TYPE_ISDB_S) {
     if (ls->ls_last_tone_off != band + 1) {
       ls->ls_last_tone_off = 0;
       tvhtrace(LS_DISEQC, "set diseqc tone %s", band ? "on" : "off");
@@ -1211,6 +1261,9 @@ linuxdvb_satconf_create
     uuid = htsmsg_get_str(conf, "uuid");
   }
 
+  if (!type && lfe->lfe_type == DVB_TYPE_ISDB_S)
+    type = "isdb-s";
+
   lst = linuxdvb_satconf_type_find(type);
   assert(lst);
   
@@ -1222,6 +1275,10 @@ linuxdvb_satconf_create
   ls->ls_early_tune = 1;
   ls->ls_diseqc_full = 1;
   ls->ls_max_rotor_move = 120;
+  if (lfe->lfe_type == DVB_TYPE_ISDB_S) {
+    ls->ls_early_tune = 0;
+    ls->ls_lnb_poweroff = 1;
+  }
 
   /* Create node */
   if (idnode_insert(&ls->ls_id, uuid, lst->idc, 0)) {
@@ -1249,6 +1306,16 @@ linuxdvb_satconf_create
         if (lst->enable)
           htsmsg_set_bool(e, "enabled", 1);
         lse = linuxdvb_satconf_ele_create0(htsmsg_get_str(e, "uuid"), e, ls);
+
+        if (lfe->lfe_type == DVB_TYPE_ISDB_S && lse->lse_networks->is_count == 0) {
+          htsmsg_t *m = htsmsg_create_map();
+          htsmsg_t *n;
+
+          n = idnode_set_as_htsmsg(lfe->mi_network_list((mpegts_input_t *)lfe));
+          htsmsg_add_msg(m, "networks", n);
+          idnode_load(&lse->lse_id, m);
+          htsmsg_destroy(m);
+        }
       }
     }
     
@@ -1259,8 +1326,17 @@ linuxdvb_satconf_create
   /* Create elements */
   lse = TAILQ_FIRST(&ls->ls_elements);
   for (i = 0; i < lst->ports; i++) {
-    if (!lse)
+    if (!lse) {
       lse = linuxdvb_satconf_ele_create0(NULL, NULL, ls);
+      if (lfe->lfe_type == DVB_TYPE_ISDB_S) {
+        htsmsg_t *m = htsmsg_create_map();
+
+        htsmsg_add_msg(m, "networks",
+          idnode_set_as_htsmsg(lfe->mi_network_list((mpegts_input_t *)lfe)));
+        idnode_load(&lse->lse_id, m);
+        htsmsg_destroy(m);
+      }
+    }
     if (lst->enable)
       lse->lse_enabled = 1;
     if (!lse->lse_lnb)
@@ -1576,7 +1652,11 @@ const idclass_t linuxdvb_satconf_ele_class =
       .set      = linuxdvb_satconf_ele_class_lnbtype_set,
       .get      = linuxdvb_satconf_ele_class_lnbtype_get,
       .list     = linuxdvb_lnb_list,
+#if ENABLE_ISDB
+      .def.s    = "Ku 10678 (Japan)",
+#else
       .def.s    = "Universal",
+#endif
     },
     {
       .type     = PT_STR,
